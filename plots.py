@@ -2,6 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import utils
 
+import matplotlib
+import os
+import datetime
+
+HEADLESS = matplotlib.get_backend().lower().endswith("agg")
+
+
 
 def _value_from_bin(v, kind="p", eps=0.0):
     if kind == "hit":  return float(v["hit"])
@@ -37,7 +44,15 @@ def plot_hits_scatter(bins, d,N, kind="p", eps=0.0, s_min=10, s_max=200, title=N
     ax.set_ylim(0, N-1)
     ax.grid(True, linewidth=0.5)
     ax.set_title(title or f"Hits ({'p̂' if kind=='p' else kind})")
-    plt.show()
+    if HEADLESS:
+        # auto-save instead of showing when running under Agg (e.g. WSL)
+        date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+        dir_path = os.path.join("runs", date_str)
+        os.makedirs(dir_path, exist_ok=True)
+        plt.savefig(os.path.join(dir_path, f"hits_scatter_{date_str}.png"), dpi=150, bbox_inches="tight")
+    else:
+        plt.show()
+
 
     return xs, ys, vals, sizes, fig, ax
 
@@ -59,7 +74,14 @@ def plot_hits_grid(bins, d, N,kind="p", eps=0.0, title=None):
     ax.set_ylabel("y")
     ax.set_title(title or f"Hits grid ({'p̂' if kind=='p' else kind})")
     fig.colorbar(im, ax=ax, fraction=0.046)
-    plt.show()
+    if HEADLESS:
+        # auto-save instead of showing when running under Agg (e.g. WSL)
+        date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+        dir_path = os.path.join("runs", date_str)
+        os.makedirs(dir_path, exist_ok=True)
+        plt.savefig(os.path.join(dir_path, f"hits_grid_{date_str}.png"), dpi=150, bbox_inches="tight")
+    else:
+        plt.show()
     return grid, fig, ax, im
 
 
@@ -99,6 +121,24 @@ def bins_to_image_uint8(bins, d, N,kind="p", eps=0.0, vmin=None, vmax=None, flip
     return grid_to_image_uint8(grid, vmin=vmin, vmax=vmax, flip_vertical=flip_vertical)
 
 
+def show_image(img, title="Image"):
+    """
+    Display a single image using matplotlib.
+    Accepts 2D array (uint8 preferred).
+    """
+    plt.imshow(img, cmap="gray", vmin=0, vmax=255)
+    plt.title(title)
+    plt.axis("off")
+    if HEADLESS:
+        # auto-save instead of showing when running under Agg (e.g. WSL)
+        date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+        dir_path = os.path.join("runs", date_str)
+        os.makedirs(dir_path, exist_ok=True)
+        plt.savefig(os.path.join(dir_path, f"image_{date_str}.png"), dpi=150, bbox_inches="tight")
+    else:
+        plt.show()
+
+
 def show_image_comparison(orig_img, recon_img, titles=("Original", "Reconstructed")):
     """
     Plot two images side by side for visual comparison.
@@ -112,7 +152,14 @@ def show_image_comparison(orig_img, recon_img, titles=("Original", "Reconstructe
     axes[1].set_title(titles[1]); axes[1].axis("off")
 
     plt.tight_layout()
-    plt.show()
+    if HEADLESS:
+        # auto-save instead of showing when running under Agg (e.g. WSL)
+        date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+        dir_path = os.path.join("runs", date_str)
+        os.makedirs(dir_path, exist_ok=True)
+        plt.savefig(os.path.join(dir_path, f"image_comparison_{date_str}.png"), dpi=150, bbox_inches="tight")
+    else:
+        plt.show()
 
 # ---------------------------------------------
 # utils
@@ -180,8 +227,14 @@ def plot_mse_map(img_gt, img_test, title="Per-pixel squared error"):
     plt.axis("off")
     cbar = plt.colorbar(im)
     cbar.set_label("squared error")
-    plt.show()
-
+    if HEADLESS:
+        # auto-save instead of showing when running under Agg (e.g. WSL)
+        date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+        dir_path = os.path.join("runs", date_str)
+        os.makedirs(dir_path, exist_ok=True)
+        plt.savefig(os.path.join(dir_path, f"mse_map_{date_str}.png"), dpi=150, bbox_inches="tight")
+    else:
+        plt.show()
 def compute_psnr(img_gt, img_test, max_pixel=255.0):
     """
     Return average PSNR (dB) computed from the global MSE.
@@ -220,7 +273,14 @@ def plot_psnr_map(img_gt, img_test, max_pixel=255.0, clip_db=60.0, title="Per-pi
     plt.axis("off")
     cbar = plt.colorbar(im)
     cbar.set_label("PSNR (dB, clipped)")
-    plt.show()
+    if HEADLESS:
+        # auto-save instead of showing when running under Agg (e.g. WSL)
+        date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+        dir_path = os.path.join("runs", date_str)
+        os.makedirs(dir_path, exist_ok=True)
+        plt.savefig(os.path.join(dir_path, f"psnr_map_{date_str}.png"), dpi=150, bbox_inches="tight")
+    else:
+        plt.show()
 
 # ---------------------------------------------
 # trend helpers (line graphs)
@@ -239,7 +299,14 @@ def plot_shots_vs_mse(shots, mse_values, title="Shots vs MSE"):
     plt.ylabel("MSE")
     plt.title(title)
     plt.grid(True)
-    plt.show()
+    if HEADLESS:
+        # auto-save instead of showing when running under Agg (e.g. WSL)
+        date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+        dir_path = os.path.join("runs", date_str)
+        os.makedirs(dir_path, exist_ok=True)
+        plt.savefig(os.path.join(dir_path, f"shots_vs_mse_{date_str}.png"), dpi=150, bbox_inches="tight")
+    else:
+        plt.show()
 
 def plot_shots_vs_psnr(shots, psnr_values, title="Shots vs PSNR"):
     """
@@ -255,4 +322,11 @@ def plot_shots_vs_psnr(shots, psnr_values, title="Shots vs PSNR"):
     plt.ylabel("PSNR (dB)")
     plt.title(title)
     plt.grid(True)
-    plt.show()
+    if HEADLESS:
+        # auto-save instead of showing when running under Agg (e.g. WSL)
+        date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+        dir_path = os.path.join("runs", date_str)
+        os.makedirs(dir_path, exist_ok=True)
+        plt.savefig(os.path.join(dir_path, f"shots_vs_psnr_{date_str}.png"), dpi=150, bbox_inches="tight")
+    else:
+        plt.show()
