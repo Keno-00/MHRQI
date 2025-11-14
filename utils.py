@@ -71,6 +71,22 @@ def bits_to_int(bits: Iterable[int], msb_first: bool = True) -> int:
 
 def sort_by_binary(big_array: List[List[int]], msb_first: bool = True) -> List[List[int]]:
     return sorted(big_array, key=lambda arr: bits_to_int(arr, msb_first=msb_first))
+def digits_to_int(digits: Iterable[int], base: int, msb_first: bool = True) -> int:
+    value = 0
+    if msb_first:
+        for d in digits:
+            value = value * base + d
+    else:
+        powb = 1
+        for d in digits:
+            value += d * powb
+            powb *= base
+    return value
+
+
+def sort_by_dary(big_array: List[List[int]], d: int, msb_first: bool = True) -> List[List[int]]:
+    return sorted(big_array, key=lambda arr: digits_to_int(arr, d, msb_first=msb_first))
+
 
 
 def expand_and_sort(big_array: List[List[int]], msb_first: bool = True) -> List[List[int]]:
@@ -79,10 +95,34 @@ def expand_and_sort(big_array: List[List[int]], msb_first: bool = True) -> List[
     for arr in sorted_initial:
         expanded.append(arr + [0])
         expanded.append(arr + [1])
-    sorted_final = sort_by_binary(expanded, msb_first=msb_first)
+    # Detect if binary
+    is_binary = all(val in (0, 1) for arr in expanded for val in arr)
+    if is_binary:
+        sorted_final = sort_by_binary(expanded, msb_first=msb_first)
+    else:
+        max_val = max(val for arr in expanded for val in arr)
+        d = max_val + 1
+        sorted_final = sort_by_dary(expanded, d, msb_first=msb_first)
     return sorted_final
 
-
+def expand_and_sort_denoised(big_array: List[List[int]], msb_first: bool = True) -> List[List[int]]:
+    sorted_initial = sort_by_binary(big_array, msb_first=msb_first)
+    expanded = []
+    for arr in sorted_initial:
+        # Add both mean (0/1) and color (0/1) = 4 combinations
+        for mean_bit in [0, 1]:
+            for color_bit in [0, 1]:
+                expanded.append(arr + [mean_bit, color_bit])
+    
+    # Detect if binary
+    is_binary = all(val in (0, 1) for arr in expanded for val in arr)
+    if is_binary:
+        sorted_final = sort_by_binary(expanded, msb_first=msb_first)
+    else:
+        max_val = max(val for arr in expanded for val in arr)
+        d = max_val + 1
+        sorted_final = sort_by_dary(expanded, d, msb_first=msb_first)
+    return sorted_final
 
 
 def empty_bin():
@@ -106,6 +146,26 @@ def make_bins(counts, hierarchy_matrix):
             bins[key]["miss"] += 1
         bins[key]["trials"] += 1
 
+    return bins
+
+def make_bins_denoised(counts, hierarchy_matrix):
+    bins = defaultdict(empty_bin)
+    sorted_expanded = expand_and_sort_denoised(hierarchy_matrix)
+    
+    for i in counts:  # i is an index
+        curr = sorted_expanded[i].copy()
+        
+        mean_bit = curr.pop()
+        color_bit = curr.pop()
+        key = tuple(curr)
+        
+        if mean_bit == 0:
+            if color_bit == 1:
+                bins[key]["hit"] += 1
+            else:
+                bins[key]["miss"] += 1
+            bins[key]["trials"] += 1
+    
     return bins
 
 def make_bins_sv(state_vector, hierarchy_matrix, d=2):
@@ -132,6 +192,34 @@ def make_bins_sv(state_vector, hierarchy_matrix, d=2):
 
 
 
+
+
+def make_bins_sv_denoised(state_vector, hierarchy_matrix, d=2):
+    bins = defaultdict(empty_bin)
+    sorted = expand_and_sort_denoised(hierarchy_matrix)
+    
+    sv = np.array(state_vector)
+    sv_flat = sv.flatten()
+
+    for index, i in enumerate(sv_flat):
+        prb = np.abs(i)**2
+        curr = sorted[index].copy()
+        
+        mean_bit = curr.pop()
+        color_bit = curr.pop()
+        key = tuple(curr)
+        
+        # Only count if mean_bit == 0 (uncompute succeeded)
+        if mean_bit == 0:
+            if color_bit == 1:
+                bins[key]["hit"] += prb
+            else:
+                bins[key]["miss"] += prb
+            bins[key]["trials"] += prb
+
+    return bins
+
+
 def p_hat(bins, hcv, eps=0.0):
     v = bins[hcv]
     t = v["trials"]
@@ -143,9 +231,6 @@ def p_hat(bins, hcv, eps=0.0):
 ####################
 
 def v_eff(theta_a, interaction, alpha):
-    """
-    Compute g(θ_a, θ_b) = β|sin²(θ_a/2) - sin²(θ_b/2)|
-    """
     sin_a_half = math.sin(theta_a / 2)
     j = alpha * abs(sin_a_half**2)
     

@@ -2,19 +2,13 @@ import numpy as np
 from mqt.qudits.quantum_circuit import QuantumCircuit
 from mqt.qudits.quantum_circuit import QuantumRegister
 from mqt.qudits.quantum_circuit.gate import ControlData
+from mqt.qudits.compiler import QuditCompiler
 import utils
 from mqt.qudits.simulation import MQTQuditProvider
 from mqt.qudits.visualisation import plot_counts, plot_state
 import math
 
 
-SWAP = np.array([
-    [1,0,0,0],
-    [0,0,1,0],
-    [0,1,0,0],
-    [0,0,0,1]
-], dtype=np.complex128)
-#CUSTOM TOFFOLI, SWAP GATE
 
 def MHRQI_init(d,L_max):
     circuit = QuantumCircuit()
@@ -35,6 +29,7 @@ def MHRQI_init(d,L_max):
     for i in range(0,int(len(MHRQI_registers)-1)):
         #print(f"h @ {i}")
         circuit.h(i)
+        
     #print(circuit)
     return(circuit,MHRQI_registers)
 
@@ -65,12 +60,13 @@ def MHRQI_upload_intensity(circuit,reg,d,hierarchy_matrix,img):
 
 def DENOISER_(circuit,reg,d,hierarchy_matrix,img,beta = 1, alpha = 1):
     controls = []
-    hier_levels = int((len(reg)-1)/2)
     v_eff_dict = {}
+    u_p_dict = {}
 
     # index of color ancilla is equal to len(reg)-1
+    color_idx = len(reg)-1
     # index of v_eff accumulator ancilla is equal to len(reg) 
-    v_eff_ancilla = int(len(reg))
+    accumulator_idx = int(len(reg))
     # index of position register is from 0 to len(reg)-2
 
 
@@ -79,11 +75,13 @@ def DENOISER_(circuit,reg,d,hierarchy_matrix,img,beta = 1, alpha = 1):
 
     circuit.append(accumulator)
 
+    print(hierarchy_matrix)
+
     
     #print(hier_levels)
     children = [[x, y] for x in range(d) for y in range(d)]
-    print(children)
-    print(hierarchy_matrix)
+    #print(children)
+    #print(hierarchy_matrix)
 
     #for testing one parent
     #hierarchy_matrix = [[0,0,0,0],]
@@ -103,73 +101,164 @@ def DENOISER_(circuit,reg,d,hierarchy_matrix,img,beta = 1, alpha = 1):
 
         img_val = []
         for vector in pc_vectors:
-            print(vector)
+            #print(vector)
             r,c = utils.compose_rc(vector,d)
             img_val.append(float(img[r,c]))
-        print(f"child intensities of parent : {vector[:-2]}")
-        print(img_val)
+        #print(f"child intensities of parent : {vector[:-2]}")
+        #print(img_val)
 
-        print("g of intensities")
+        u_p = np.mean(img_val)
+
+
+        # print("g of intensities")
         g_res = utils.g_matrix(img_val,beta)
-        print(g_res)
+        # print(g_res)
         interactions = utils.interactions(g_res)
 
-        print("interactions")
-        print(interactions)
+        # print("interactions")
+        # print(interactions)
         #print(parents)
         for idx, vector in enumerate(pc_vectors):
-            print(interactions)
+            # print(interactions)
             #print(vector)
             r,c = utils.compose_rc(vector,d)
             theta = float(img[r,c])
 
-            v_eff = utils.v_eff(theta,interactions[idx],alpha )
+            v_eff = utils.v_eff(theta, interactions[idx].item(), alpha)
 
-            print(f"veff of {vector}:  {v_eff}")
+            # print(f"veff of {vector}:  {v_eff}")
+            # print(f"U_p of {vector}:  {u_p}")
             v_eff_dict[str(vector)] = v_eff
 
-    print(v_eff_dict)
+            u_p_dict[str(vector)] = u_p
+
+    # print(v_eff_dict)
 
     for i in hierarchy_matrix:
 
-        print(i)
+        # print(i)
         ctrl_states = list(i)
         ctrl = ControlData(controls,ctrl_states)
         v_pc = v_eff_dict[str(i)]
-        print(v_pc)
+        u_p_now = u_p_dict[str(i)]
+        # print(v_pc)
         #print(f"rc: ({r,c}), pix val {img[r,c]}")
-        circuit.r(v_eff_ancilla, [0, 1,float(v_pc),0.0] ,ctrl)      ### HAMILTONIAN encoding potential energy of interaction of energies. 
+        circuit.r(accumulator_idx, [0, 1,float(u_p_now),0.0] ,ctrl)      ### HAMILTONIAN parent mean
+        circuit.r(accumulator_idx, [0, 1,0.0,float(v_pc)] ,ctrl)      ### ORACLE
 
+
+
+    ##################################################################################################    
+    #-------------------------------------------------------------------------------------------------
     del ctrl_states
     del ctrl
     del controls
     controls = []
-
+    ctrl_states = []
     for i in range (0,int(len(reg)-1)): # position control reg
-        controls.append(i)
-    controls.append(v_eff_ancilla) # adding v_eff as a control perfectly conditioned on intra parent energy interactions to determine coherences
+       controls.append(i)
 
     for i in hierarchy_matrix:
-        print(i)
+       ctrl_states.append(list(i))                                             # diffuser
+    # print(ctrl_states)
+    for i in controls:
+        circuit.h(i)
+        circuit.z(i)
+    circuit.h(accumulator_idx)
+    circuit.z(accumulator_idx)
+    for ctrl_state in ctrl_states:
+       ctrl_state = list(ctrl_state)
+    #    print(f"diffuser on: {ctrl_state}")                                 #CZ
+       ctrl = ControlData(controls,ctrl_state)
+       circuit.z(accumulator_idx,ctrl)
+
+
+    #circuit.x(accumulator_idx)
+    circuit.h(accumulator_idx)
+    for i in controls:
+        circuit.h(i)
+        #circuit.z(i)
+    
+    #-----------------------------------------------------------------------------
+    #########################################################################3####
+
+    #final hamiltonian "ADJUSTED"
+    del ctrl_states
+    del ctrl
+    del controls
+    controls = []
+    ctrl_states = []
+    for i in range (0,int(len(reg)-1)): # position control reg
+        controls.append(i)
+    controls.append(accumulator_idx)
+    for i in hierarchy_matrix:
+        # print(i)
+        state =  list(i)
+        state.append(1)
+        # print(state)
+        ctrl_states.append(state)
+    # print(ctrl_states)
+    for ctrl_state in ctrl_states:
+        ctrl_state = list(ctrl_state)
+        # print(f"adjust on: {ctrl_state}")                                 #CZ
+        vector = ctrl_state[:-1]
+        r,c = utils.compose_rc(vector,d)
+        theta = float(img[r,c])
+        u_p_now = u_p_dict[str(vector)]
+        rot_angle = u_p_now - theta
+        # print(f"adjusting {vector} to mean by {rot_angle}")
+        ctrl = ControlData(controls,ctrl_state)
+        circuit.r(color_idx, [0, 1,float(rot_angle),0.0] ,ctrl) 
+
+    ######
+    # uncompute after adjust
+    ######
+    del ctrl_states
+    del ctrl
+    del controls
+    controls = []
+    ctrl_states = []
+    for i in range (0,int(len(reg)-1)): # position control reg
+        controls.append(i)
+
+    for i in hierarchy_matrix:
+        ctrl_states.append(list(i))                                             # UNCOMPUTING diffuser
+    # print(ctrl_states)
+    circuit.h(accumulator_idx)
+    for i in controls:
+        circuit.h(i)
+        circuit.z(i)
+    circuit.z(accumulator_idx)
+    for ctrl_state in ctrl_states:
+        ctrl_state = list(ctrl_state)
+        # print(f"uncompute diffuser on: {ctrl_state}")                                 
+        ctrl = ControlData(controls,ctrl_state)
+        circuit.z(accumulator_idx,ctrl)
+
+    for i in controls:
+        circuit.h(i)
+        #circuit.z(i)
+    #circuit.z(accumulator_idx)
+    circuit.h(accumulator_idx)
+    
+
+    for i in hierarchy_matrix:                                     # UNCOMPUTING 
+
+        # print(i)
         ctrl_states = list(i)
-        for ctrl_state in ctrl_states:
-            ctrl_state.append(1)
-
         ctrl = ControlData(controls,ctrl_states)
+        v_pc = v_eff_dict[str(i)]
+        u_p_now = u_p_dict[str(i)]
+        # print(v_pc)
+        #print(f"rc: ({r,c}), pix val {img[r,c]}")
+        circuit.r(accumulator_idx, [0, 1,0.0,float(-v_pc)] ,ctrl)      ### ORACLE
+        circuit.r(accumulator_idx, [0, 1,float(-u_p_now),0.0] ,ctrl)      ### HAMILTONIAN parent mean
         
-
-
-
-
-
-
-
-
-
-               
 
             
     return circuit
+
+
         
 
 
@@ -183,37 +272,62 @@ def DENOISER_(circuit,reg,d,hierarchy_matrix,img,beta = 1, alpha = 1):
 def MHRQI_simulate(circuit,shots):
     provider = MQTQuditProvider()
     provider.backends("fake")
-    backend = provider.get_backend("faketraps2trits",shots=shots) 
+    backend = provider.get_backend("faketraps2trits",shots=shots)
+
+    # Compile with logical passes for faster simulation
+    qudit_compiler = QuditCompiler()
+    passes = ["LogLocQRPass", "ZPropagationOptPass", "ZRemovalOptPass"]
+    compiled_circuit = qudit_compiler.compile(backend, circuit, passes)
+
     from mqt.qudits.simulation.noise_tools.noise import NoiseModel
     nm = NoiseModel()
-    job = backend.run(circuit, shots=shots, noise_model=nm)
+    job = backend.run(compiled_circuit, shots=shots, noise_model=nm)
     result = job.result()
 
-    state_vector = result.get_state_vector()
     counts = result.get_counts()
-    plot_state(state_vector, circuit)
-    plot_counts(counts, circuit)
-    return counts,state_vector        
+    plot_counts(counts, compiled_circuit)
+    return counts
 
 def MHRQI_simulate_state_vector(circuit):
     provider = MQTQuditProvider()
     provider.backends("sim")
-    backend = provider.get_backend("tnsim") 
+    backend = provider.get_backend("tnsim")
 
+    # Simulators can run the circuit directly without compilation
     job = backend.run(circuit)
     result = job.result()
-    
+
     state_vector = result.get_state_vector()
-    plot_state(state_vector,circuit)
+    plot_state(state_vector, circuit)
     return state_vector
 
-def p_acc_one(sv, acc_idx, endian='little'):
-    n = int(np.log2(len(sv)))
-    # binary mask bit position depending on endianness
-    bitpos = acc_idx if endian=='little' else (n-1-acc_idx)
-    inds = np.arange(len(sv))
-    mask = ((inds >> bitpos) & 1).astype(bool)
-    return float(np.sum(np.abs(sv[mask])**2))
+
+def MHRQI_compiled(circuit,shots):
+    import matplotlib.pyplot as plt
+    import networkx as nx
+    provider = MQTQuditProvider()
+    provider.backends("fake")
+    backend_ion = provider.get_backend("faketraps2trits", shots=shots)
+
+    mapping = backend_ion.energy_level_graphs
+
+    pos = nx.circular_layout(mapping[0])
+    nx.draw(mapping[0], pos, with_labels=True, node_size=2000, node_color="lightblue", font_size=12, font_weight="bold")
+    plt.show()
+    qudit_compiler = QuditCompiler()
+    passes = ["PhyLocQRPass", "ZPropagationOptPass", "ZRemovalOptPass"]  # Physical passes for hardware
+    compiled_circuit_qr = qudit_compiler.compile(backend_ion, circuit, passes)
+
+    print(f"Number of operations: {len(compiled_circuit_qr.instructions)}")
+    print(f"Number of qudits in the circuit: {compiled_circuit_qr.num_qudits}")
+    job = backend_ion.run(compiled_circuit_qr)
+
+    result = job.result()
+    counts = result.get_counts()
+
+    plot_counts(counts, compiled_circuit_qr)
+
+
 
 if __name__ == "__main__":
     hier = [[0, 0, 0, 0], [0, 0, 0, 1], [0, 1, 0, 0], [0, 1, 0, 1], [0, 0, 1, 0], [0, 0, 1, 1], [0, 1, 1, 0], [0, 1, 1, 1], [1, 0, 0, 0], [1, 0, 0, 1], [1, 1, 0, 0], [1, 1, 0, 1], [1, 0, 1, 0], [1, 0, 1, 1], [1, 1, 1, 0], [1, 1, 1, 1]]
@@ -245,9 +359,9 @@ if __name__ == "__main__":
     d = 2
     qc,reg = MHRQI_init(d,2)
     data_qc = MHRQI_upload_intensity(qc,reg,d,hier,angle )
-    denoise_qc = DENOISER_(data_qc,reg,d, hier,angle)
-    #sv = MHRQI_simulate_state_vector(denoise_qc)
-    #print(sv)
+    data_qc = DENOISER_(data_qc,reg,d, hier,angle)
+    sv = MHRQI_simulate_state_vector(data_qc)
+    print(sv)
     #bins = utils.make_bins_sv(sv,hier)
 
     
