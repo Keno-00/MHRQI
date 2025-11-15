@@ -223,7 +223,9 @@ def make_bins_sv_denoised(state_vector, hierarchy_matrix, d=2):
 def p_hat(bins, hcv, eps=0.0):
     v = bins[hcv]
     t = v["trials"]
-    return (v["hit"] + eps) / (t + 2*eps) if t else float("nan") # hit over hit+miss
+    if t == 0:
+        return 0.0
+    return (v["hit"] + eps) / (t + 2*eps) # hit over hit+miss
 
 
 ####################

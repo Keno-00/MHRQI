@@ -68,31 +68,14 @@ def DENOISER_(circuit,reg,d,hierarchy_matrix,img,beta = 1, alpha = 1):
     # index of v_eff accumulator ancilla is equal to len(reg) 
     accumulator_idx = int(len(reg))
     # index of position register is from 0 to len(reg)-2
-
-
-
     accumulator = QuantumRegister("accumulator", 1, [2])
-
     circuit.append(accumulator)
-
     print(hierarchy_matrix)
-
-    
-    #print(hier_levels)
-    children = [[x, y] for x in range(d) for y in range(d)]
-    #print(children)
-    #print(hierarchy_matrix)
-
-    #for testing one parent
-    #hierarchy_matrix = [[0,0,0,0],]
-
+    children = [[y, x] for x in range(d) for y in range(d)]
     for i in range (0,int(len(reg)-1)): # will not include color ancilla. we dont want to include it so this is okay.
         controls.append(i)
-
-    
     for i in hierarchy_matrix:
         v_eff_dict[str(i)] = 0.0
-
     for i in hierarchy_matrix:
         #print(i)
         parents = i[:-2]
@@ -104,52 +87,25 @@ def DENOISER_(circuit,reg,d,hierarchy_matrix,img,beta = 1, alpha = 1):
             #print(vector)
             r,c = utils.compose_rc(vector,d)
             img_val.append(float(img[r,c]))
-        #print(f"child intensities of parent : {vector[:-2]}")
-        #print(img_val)
-
         u_p = np.mean(img_val)
 
-
-        # print("g of intensities")
         g_res = utils.g_matrix(img_val,beta)
-        # print(g_res)
         interactions = utils.interactions(g_res)
-
-        # print("interactions")
-        # print(interactions)
-        #print(parents)
         for idx, vector in enumerate(pc_vectors):
-            # print(interactions)
-            #print(vector)
             r,c = utils.compose_rc(vector,d)
             theta = float(img[r,c])
-
             v_eff = utils.v_eff(theta, interactions[idx].item(), alpha)
-
-            # print(f"veff of {vector}:  {v_eff}")
-            # print(f"U_p of {vector}:  {u_p}")
             v_eff_dict[str(vector)] = v_eff
-
             u_p_dict[str(vector)] = u_p
-
-    # print(v_eff_dict)
-
+ ##################################################################################################    
+ #-------------------------------------------------------------------------------------------------
     for i in hierarchy_matrix:
-
-        # print(i)
         ctrl_states = list(i)
         ctrl = ControlData(controls,ctrl_states)
         v_pc = v_eff_dict[str(i)]
         u_p_now = u_p_dict[str(i)]
-        # print(v_pc)
-        #print(f"rc: ({r,c}), pix val {img[r,c]}")
         circuit.r(accumulator_idx, [0, 1,float(u_p_now),0.0] ,ctrl)      ### HAMILTONIAN parent mean
         circuit.r(accumulator_idx, [0, 1,0.0,float(v_pc)] ,ctrl)      ### ORACLE
-
-
-
-    ##################################################################################################    
-    #-------------------------------------------------------------------------------------------------
     del ctrl_states
     del ctrl
     del controls
@@ -171,17 +127,11 @@ def DENOISER_(circuit,reg,d,hierarchy_matrix,img,beta = 1, alpha = 1):
     #    print(f"diffuser on: {ctrl_state}")                                 #CZ
        ctrl = ControlData(controls,ctrl_state)
        circuit.z(accumulator_idx,ctrl)
-
-
     #circuit.x(accumulator_idx)
     circuit.h(accumulator_idx)
     for i in controls:
         circuit.h(i)
         #circuit.z(i)
-    
-    #-----------------------------------------------------------------------------
-    #########################################################################3####
-
     #final hamiltonian "ADJUSTED"
     del ctrl_states
     del ctrl
@@ -209,6 +159,8 @@ def DENOISER_(circuit,reg,d,hierarchy_matrix,img,beta = 1, alpha = 1):
         # print(f"adjusting {vector} to mean by {rot_angle}")
         ctrl = ControlData(controls,ctrl_state)
         circuit.r(color_idx, [0, 1,float(rot_angle),0.0] ,ctrl) 
+#-----------------------------------------------------------------------------
+#########################################################################3####
 
     ######
     # uncompute after adjust
@@ -276,16 +228,17 @@ def MHRQI_simulate(circuit,shots):
 
     # Compile with logical passes for faster simulation
     qudit_compiler = QuditCompiler()
-    passes = ["LogLocQRPass", "ZPropagationOptPass", "ZRemovalOptPass"]
-    compiled_circuit = qudit_compiler.compile(backend, circuit, passes)
+    #passes = ["LogLocQRPass", "ZPropagationOptPass", "ZRemovalOptPass"]
+    passes = ["ZPropagationOptPass", "ZRemovalOptPass"]
+    circuit = qudit_compiler.compile(backend, circuit, passes)
 
     from mqt.qudits.simulation.noise_tools.noise import NoiseModel
     nm = NoiseModel()
-    job = backend.run(compiled_circuit, shots=shots, noise_model=nm)
+    job = backend.run(circuit, shots=shots, noise_model=nm)
     result = job.result()
 
     counts = result.get_counts()
-    plot_counts(counts, compiled_circuit)
+    plot_counts(counts, circuit)
     return counts
 
 def MHRQI_simulate_state_vector(circuit):
@@ -330,6 +283,7 @@ def MHRQI_compiled(circuit,shots):
 
 
 if __name__ == "__main__":
+    import plots
     hier = [[0, 0, 0, 0], [0, 0, 0, 1], [0, 1, 0, 0], [0, 1, 0, 1], [0, 0, 1, 0], [0, 0, 1, 1], [0, 1, 1, 0], [0, 1, 1, 1], [1, 0, 0, 0], [1, 0, 0, 1], [1, 1, 0, 0], [1, 1, 0, 1], [1, 0, 1, 0], [1, 0, 1, 1], [1, 1, 1, 0], [1, 1, 1, 1]]
     angle = np.array([
     [1.12912503, 1.48835001, 1.27226413, 2.29527494],
@@ -358,11 +312,13 @@ if __name__ == "__main__":
 
     d = 2
     qc,reg = MHRQI_init(d,2)
-    data_qc = MHRQI_upload_intensity(qc,reg,d,hier,angle )
-    data_qc = DENOISER_(data_qc,reg,d, hier,angle)
+    data_qc = MHRQI_upload_intensity(qc,reg,d,hier,angles_coherent )
+    #data_qc = DENOISER_(data_qc,reg,d, hier,angles_coherent)
     sv = MHRQI_simulate_state_vector(data_qc)
     print(sv)
-    #bins = utils.make_bins_sv(sv,hier)
-
+    bins = utils.make_bins_sv(sv,hier)
+    grid = plots.bins_to_grid(bins,d,4,kind="p")
+    img = plots.grid_to_image_uint8(grid)
+    plots.show_image(img,"test")
     
 
