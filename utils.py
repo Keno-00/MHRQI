@@ -179,7 +179,7 @@ def make_bins_sv(state_vector, hierarchy_matrix, d=2):
     for index,i in enumerate(sv_flat): #for each i na makuha natin, hanapin natin yung respective register
         prb =np.abs(i)**2
         curr = sorted[index].copy()
-        print(curr)
+        #print(curr)
         h = curr.pop()
         key = tuple(curr)
         if h == 1:

@@ -3,3 +3,7 @@ test_circuit_qiskit.py
 resources/
 .venv_wsl/
 mhrqi_runs.csv
+__pycache__/
+mqt-qudits-sparse/
+sparse_improvements_plan.md
+test_statevector_consistency_backup.py

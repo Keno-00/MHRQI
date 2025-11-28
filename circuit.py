@@ -38,7 +38,7 @@ def MHRQI_upload_intensity(circuit,reg,d,hierarchy_matrix,img):
     MHRQI_register = []
     controls = []
     for i in reg:
-        print(i[0])
+        # print(i[0])
         MHRQI_register.append(i[0])
     
     #print(MHRQI_register)
@@ -70,7 +70,7 @@ def DENOISER_(circuit,reg,d,hierarchy_matrix,img,beta = 1, alpha = 1):
     # index of position register is from 0 to len(reg)-2
     accumulator = QuantumRegister("accumulator", 1, [2])
     circuit.append(accumulator)
-    print(hierarchy_matrix)
+    # print(hierarchy_matrix)
     children = [[y, x] for x in range(d) for y in range(d)]
     for i in range (0,int(len(reg)-1)): # will not include color ancilla. we dont want to include it so this is okay.
         controls.append(i)
@@ -223,34 +223,37 @@ def DENOISER_(circuit,reg,d,hierarchy_matrix,img,beta = 1, alpha = 1):
 
 def MHRQI_simulate(circuit,shots):
     provider = MQTQuditProvider()
-    provider.backends("fake")
-    backend = provider.get_backend("faketraps2trits",shots=shots)
+    backend = provider.get_backend("sparse_statevec",shots=shots)
 
-    # Compile with logical passes for faster simulation
-    qudit_compiler = QuditCompiler()
-    #passes = ["LogLocQRPass", "ZPropagationOptPass", "ZRemovalOptPass"]
-    passes = ["ZPropagationOptPass", "ZRemovalOptPass"]
-    circuit = qudit_compiler.compile(backend, circuit, passes)
+    # qudit_compiler = QuditCompiler()
+    # passes = ["LogLocQRPass", "ZPropagationOptPass", "ZRemovalOptPass"]
+    # passes = ["ZPropagationOptPass", "ZRemovalOptPass"]
+    # circuit = qudit_compiler.compile(backend, circuit, passes)
 
     from mqt.qudits.simulation.noise_tools.noise import NoiseModel
     nm = NoiseModel()
-    job = backend.run(circuit, shots=shots, noise_model=nm)
+    job = backend.run(circuit, shots=shots, noise_model=nm,use_gpu=True)
     result = job.result()
 
     counts = result.get_counts()
     plot_counts(counts, circuit)
+    print(f"Number of operations: {len(circuit.instructions)}")
+    print(f"Number of qudits in the circuit: {circuit.num_qudits}")
     return counts
 
 def MHRQI_simulate_state_vector(circuit):
     provider = MQTQuditProvider()
     provider.backends("sim")
-    backend = provider.get_backend("tnsim")
+    backend = provider.get_backend("sparse_statevec")
 
     # Simulators can run the circuit directly without compilation
-    job = backend.run(circuit)
+    job = backend.run(circuit,use_gpu=True)
     result = job.result()
 
     state_vector = result.get_state_vector()
+
+    print(f"Number of operations: {len(circuit.instructions)}")
+    print(f"Number of qudits in the circuit: {circuit.num_qudits}")
     plot_state(state_vector, circuit)
     return state_vector
 

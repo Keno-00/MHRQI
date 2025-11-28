@@ -1,20 +1,8 @@
-# MHRQI port to Qiskit (patched with normalized denoiser)
-# Changes:
-# - Control-state ordering consistent with hierarchy vectors.
-# - Bitstring interpretation in make_bins_* (reverse bitstring).
-# - Use L_max consistent with hierarchy size.
-# - Measure [positions, intensity] only; ignore ancillas.
-# - Children as [y, x] to match [y0, x0, y1, x1, ...].
-# - DENOISER_qiskit now normalizes u_p and v_eff and uses a small
-#   lambda_color step for the final color update, while keeping
-#   the Grover/diffuser structure.
-
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
 from qiskit_aer import Aer, AerSimulator
 
 from qiskit.circuit.library import MCXGate
 import numpy as np
-import math
 import utils
 from collections import defaultdict
 
@@ -107,10 +95,6 @@ def MHRQI_upload_intensity_qiskit(qc: QuantumCircuit, pos_regs, intensity_reg, d
     """
     Upload intensity values by rotating the intensity ancilla conditioned on the position control states.
     This uses RY rotations to encode intensity into the intensity qubit.
-
-    Assumption:
-    - hierarchy_matrix vectors `vec` are ordered as [y0, x0, y1, x1, ..., y_{L-1}, x_{L-1}]
-    - pos_regs are [q_y_0, q_x_0, q_y_1, q_x_1, ...] in the same order.
     """
     # Control qubits in the same order as vec
     controls = [reg[0] for reg in pos_regs]

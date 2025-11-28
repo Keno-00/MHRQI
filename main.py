@@ -15,7 +15,7 @@ import os
 HEADLESS = matplotlib.get_backend().lower().endswith("agg")
 
 if HEADLESS:
-    linuxmode = True
+    linuxmode = False
 
 
 CSV_PATH = Path("mhrqi_runs.csv")
@@ -33,7 +33,7 @@ def save_rows_to_csv(rows, csv_path=CSV_PATH):
         w.writerows(rows)
 
 def main(shots=1000, n=4, d=2, denoise=False, use_shots=True,compiler = False,qiskit_mode = False):
-    myimg = cv2.imread("cnv.jpeg")
+    myimg = cv2.imread("resources/cnv.jpeg")
     myimg = cv2.resize(myimg, (n,n))
     myimg = cv2.cvtColor(myimg, cv2.COLOR_RGB2GRAY)
     N = myimg.shape[1]
@@ -105,6 +105,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True,compiler = False,qi
             print("not implemented")
         else:
             state_vector = circuit.MHRQI_simulate_state_vector(data_qc)
+            print(state_vector)
 
 
             if denoise:
@@ -113,7 +114,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True,compiler = False,qi
                 bins = utils.make_bins_sv(state_vector, hierarchy_matrix)
     # plots.plot_hits_grid(bins,d,N,kind="hit")
     # plots.plot_hits_grid(bins,d,N,kind="miss")
-    print(bins)
+    #print(bins)
     grid = plots.bins_to_grid(bins,d,N,kind="p")
     #grid,_,_,_=plots.plot_hits_grid(bins,d,N,kind="p")
     # plots.plot_hits_scatter(bins,d,N,kind="hit")
@@ -129,22 +130,24 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True,compiler = False,qi
     
 
 if __name__ == "__main__":
-    n = 256
-    qudit_d =2 # qubit  =  2, qutrit =  3, ququart = 4
+    n = 729
+    qudit_d =3 # qubit  =  2, qutrit =  3, ququart = 4
                 #uses qiskit on qubits.
     if qudit_d ==2:
         qiskit_mode = True
+    else:
+        qiskit_mode = False
 
     bin_of_n = 2*(n**2)
     tests = 10
     do_tests = False
-    shots = [2500000,3000000]
+    shots = [900]
     run_psnr = []
     run_mse = []
     rows = []
 
     denoise = False
-    use_shots = True
+    use_shots = False
     compiler = False
 
     if do_tests:
