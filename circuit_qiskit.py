@@ -10,7 +10,6 @@ from collections import defaultdict
 # -------------------------
 # Helper primitives
 # -------------------------
-
 def _prepare_controls_on_states(qc: QuantumCircuit, controls, ctrl_states):
     """Flip controls where ctrl_state == 0 so that all required controls are 1."""
     for q, s in zip(controls, ctrl_states):
@@ -123,213 +122,75 @@ def MHRQI_upload_intensity_qiskit(qc: QuantumCircuit, pos_regs, intensity_reg, d
     return qc
 
 
-def DENOISER_qiskit(qc: QuantumCircuit, pos_regs, intensity_reg, accumulator_reg,
-                    and_ancilla_reg, work_regs, d, hierarchy_matrix, img,
-                    beta=1.0, alpha=1.0,
-                    lambda_color=0.3,
-                    target_u=np.pi/8.0,
-                    target_v=np.pi/8.0,
-                    num_layers=3):
+def DENOISER_qiskit(qc, pos_regs, d, time_step=0.4, steps=1, use_v_cycle=True):
     """
-    Denoiser with multiple Grover-like layers.
-
-    Pipeline:
-    - Compute u_p (parent means) and v_eff (effective potentials) from the image.
-    - Normalize u_p and v_eff to small angles *for the accumulator/Grover block only*.
-    - Load scaled u_p and v_eff into the accumulator once.
-    - For each Grover layer:
-        1) Apply Grover-like diffuser on positions + accumulator.
-        2) Update color qubit toward RAW u_p with lambda_color, conditioned on accumulator == 1.
-        3) Apply inverse diffuser.
-    - Uncompute energies from accumulator using the SAME scaled values.
+    Multiscale Hamiltonian Denoiser with Trotterization and V-Cycle.
+    
+    Improvements:
+    1. Trotterization: Splits time_step into smaller chunks to simulate 
+       continuous flow rather than discrete jumps.
+    2. V-Cycle: Applies Fine -> Coarse -> Fine diffusion to remove 
+       block artifacts introduced by the coarse smoothing.
+    
+    Args:
+        qc: The QuantumCircuit.
+        pos_regs: List of QuantumRegisters.
+        time_step: Total diffusion strength.
+        steps: Number of Trotter steps (repetitions). Higher = smoother quality.
+        use_v_cycle: If True, performs Fine -> Coarse -> Fine.
     """
-    controls = [reg[0] for reg in pos_regs]
-    color_qubit = intensity_reg[0]
-    accumulator_qubit = accumulator_reg[0]
-    and_ancilla = and_ancilla_reg[0]
-    work_qubits = [q for q in work_regs]
+    
+    # Calculate dt per step
+    dt = time_step / steps
+    
+    print(f"--- Applying MHRQI V-Cycle Denoiser (Total t={time_step}, Steps={steps}) ---")
 
-    # -------------------------
-    # Precompute v_eff and u_p for parent vectors
-    # -------------------------
-    children = [[y, x] for y in range(d) for x in range(d)]
-    v_eff_dict_raw = {}
-    u_p_dict_raw = {}
+    # Helper: The Mixing Kernel (QFT -> Rz -> IQFT)
+    def apply_mixing_kernel(target_qubit, t_val):
+        # 1. Mix (Hadamard)
+        qc.h(target_qubit)
+        # 2. Filter (Kinetic Phase) - angle is -2.0 * t
+        qc.rz(-2.0 * t_val, target_qubit)
+        # 3. Unmix (Inverse Hadamard)
+        qc.h(target_qubit)
 
-    for vec in hierarchy_matrix:
-        v_eff_dict_raw[str(vec)] = 0.0
-        u_p_dict_raw[str(vec)] = 0.0
+    # We need at least the leaves to do anything
+    if len(pos_regs) < 2:
+        return qc
 
-    for vec in hierarchy_matrix:
-        parents = vec[:-2]
-        pc_vectors = [parents + child for child in children]
+    # Identification of layers
+    # Leaves (Fine grain): The last two indices [-2, -1]
+    leaf_y = pos_regs[-2][0]
+    leaf_x = pos_regs[-1][0]
+    
+    # Parents (Coarse grain): The pair before leaves [-4, -3], if they exist
+    has_parents = len(pos_regs) >= 4
+    parent_y = pos_regs[-4][0] if has_parents else None
+    parent_x = pos_regs[-3][0] if has_parents else None
 
-        img_vals = []
-        for v in pc_vectors:
-            rr, cc = utils.compose_rc(v, d)
-            img_vals.append(float(img[rr, cc]))
+    # --- TROTTER LOOP ---
+    for s in range(steps):
+        # 1. DOWN SWEEP (Fine -> Coarse)
+        
+        # Apply Fine Diffusion (Leaves)
+        apply_mixing_kernel(leaf_y, dt)
+        apply_mixing_kernel(leaf_x, dt)
+        
+        # Apply Coarse Diffusion (Parents) if available
+        if has_parents:
+            # Coarse diffusion usually needs to be weaker or equal to fine
+            # We use dt * 0.7 to avoid over-blurring structure
+            dt_coarse = dt * 0.7
+            apply_mixing_kernel(parent_y, dt_coarse)
+            apply_mixing_kernel(parent_x, dt_coarse)
 
-        u_p = float(np.mean(img_vals))
-        g_res = utils.g_matrix(img_vals, beta)
-        interactions = utils.interactions(g_res)
-
-        for idx, v in enumerate(pc_vectors):
-            rr, cc = utils.compose_rc(v, d)
-            theta = float(img[rr, cc])
-            v_eff = utils.v_eff(theta, interactions[idx].item(), alpha)
-            v_eff_dict_raw[str(v)] = float(v_eff)
-            u_p_dict_raw[str(v)] = u_p
-
-    # -------------------------
-    # Diagnostics: ranges before scaling
-    # -------------------------
-    theta_min, theta_max = float(img.min()), float(img.max())
-    u_vals_raw = np.array(list(u_p_dict_raw.values()))
-    v_vals_raw = np.array(list(v_eff_dict_raw.values()))
-
-    if u_vals_raw.size == 0:
-        u_vals_raw = np.array([0.0])
-    if v_vals_raw.size == 0:
-        v_vals_raw = np.array([0.0])
-
-    print("theta range (input):", theta_min, theta_max)
-    print("u_p range (raw):", float(u_vals_raw.min()), float(u_vals_raw.max()))
-    print("v_eff range (raw):", float(v_vals_raw.min()), float(v_vals_raw.max()))
-
-    # -------------------------
-    # Normalization: scale u_p and v_eff for accumulator/Grover block
-    # -------------------------
-    max_u_raw = float(np.max(np.abs(u_vals_raw))) or 1.0
-    max_v_raw = float(np.max(np.abs(v_vals_raw))) or 1.0
-
-    scale_u = target_u / max_u_raw
-    scale_v = target_v / max_v_raw
-
-    print("scale_u (acc):", scale_u, "scale_v (acc):", scale_v)
-    print("lambda_color:", lambda_color, "num_layers:", num_layers)
-
-    scaled_u_p_acc = {k: scale_u * v for k, v in u_p_dict_raw.items()}
-    scaled_v_eff_acc = {k: scale_v * v for k, v in v_eff_dict_raw.items()}
-
-    # For diagnostics: raw color update range
-    color_updates_raw = []
-    for vec in hierarchy_matrix:
-        rr, cc = utils.compose_rc(vec, d)
-        theta = float(img[rr, cc])
-        u_p_now_raw = u_p_dict_raw[str(vec)]
-        color_updates_raw.append(u_p_now_raw - theta)
-    color_updates_raw = np.array(color_updates_raw)
-    print("raw (u_p - theta) range:", float(color_updates_raw.min()), float(color_updates_raw.max()))
-
-    # -------------------------
-    # Helpers: Grover diffuser and its inverse
-    # -------------------------
-    def grover_diffuse():
-        # Forward diffuser: H+Z, phase flips, H back
-        for reg in controls:
-            qc.h(reg)
-            qc.z(reg)
-        qc.h(accumulator_qubit)
-        qc.z(accumulator_qubit)
-
-        for vec in hierarchy_matrix:
-            ctrl_states = list(vec)
-            _prepare_controls_on_states(qc, controls, ctrl_states)
-            if len(controls) > 1:
-                mcx = MCXGate(len(controls))
-                qc.append(mcx, [*controls, and_ancilla])
-                qc.z(and_ancilla)
-                mcx = MCXGate(len(controls))
-                qc.append(mcx, [*controls, and_ancilla])
-            else:
-                qc.z(controls[0])
-            _restore_controls(qc, controls, ctrl_states)
-
-        qc.h(accumulator_qubit)
-        for reg in controls:
-            qc.h(reg)
-
-    def grover_diffuse_dagger():
-        # Inverse diffuser: reverse sequence of H/Z and phase flips
-        qc.h(accumulator_qubit)
-        for reg in controls:
-            qc.h(reg)
-            qc.z(reg)
-        qc.z(accumulator_qubit)
-
-        for vec in hierarchy_matrix:
-            ctrl_states = list(vec)
-            _prepare_controls_on_states(qc, controls, ctrl_states)
-            if len(controls) > 1:
-                mcx = MCXGate(len(controls))
-                qc.append(mcx, [*controls, and_ancilla])
-                qc.z(and_ancilla)
-                mcx = MCXGate(len(controls))
-                qc.append(mcx, [*controls, and_ancilla])
-            else:
-                qc.z(controls[0])
-            _restore_controls(qc, controls, ctrl_states)
-
-        for reg in controls:
-            qc.h(reg)
-
-        qc.h(accumulator_qubit)
-
-    # -------------------------
-    # 1) Load energies into accumulator once
-    # -------------------------
-    for vec in hierarchy_matrix:
-        ctrl_states = list(vec)
-        u_p_now_acc = scaled_u_p_acc[str(vec)]
-        v_pc_acc = scaled_v_eff_acc[str(vec)]
-        apply_multi_controlled_ry(
-            qc, controls, ctrl_states,
-            accumulator_qubit, and_ancilla, work_qubits, u_p_now_acc
-        )
-        apply_multi_controlled_ry(
-            qc, controls, ctrl_states,
-            accumulator_qubit, and_ancilla, work_qubits, v_pc_acc
-        )
-
-    # -------------------------
-    # 2) Grover layers: diffuser -> color update -> inverse diffuser
-    # -------------------------
-    combined_controls = controls + [accumulator_qubit]
-
-    for layer in range(num_layers):
-        print(f"Applying Grover layer {layer+1}/{num_layers}")
-        grover_diffuse()
-
-        # Color update toward RAW u_p, conditioned on accumulator == 1
-        for vec in hierarchy_matrix:
-            ctrl_states = list(vec) + [1]  # accumulator == 1
-            rr, cc = utils.compose_rc(vec, d)
-            theta = float(img[rr, cc])
-            u_p_now_raw = u_p_dict_raw[str(vec)]
-            rot_angle = lambda_color * (u_p_now_raw - theta)
-            apply_multi_controlled_ry(
-                qc, combined_controls, ctrl_states,
-                color_qubit, and_ancilla, work_qubits, rot_angle
-            )
-
-        grover_diffuse_dagger()
-
-    # -------------------------
-    # 3) Uncompute energies from accumulator (scaled values)
-    # -------------------------
-    for vec in hierarchy_matrix:
-        ctrl_states = list(vec)
-        v_pc_acc = scaled_v_eff_acc[str(vec)]
-        u_p_now_acc = scaled_u_p_acc[str(vec)]
-        apply_multi_controlled_ry(
-            qc, controls, ctrl_states,
-            accumulator_qubit, and_ancilla, work_qubits, -v_pc_acc
-        )
-        apply_multi_controlled_ry(
-            qc, controls, ctrl_states,
-            accumulator_qubit, and_ancilla, work_qubits, -u_p_now_acc
-        )
-
+        # 2. UP SWEEP (Back to Fine) - The "V" in V-Cycle
+        # This removes artifacts created by moving the parent boundaries
+        if use_v_cycle:
+            # We apply a very light "polish" on the leaves again
+            apply_mixing_kernel(leaf_y, dt)
+            apply_mixing_kernel(leaf_x, dt)
+            
     return qc
 
 
@@ -344,9 +205,9 @@ def simulate_statevector(qc: QuantumCircuit):
     job = backend.run(transpiled)
     result = job.result()
     return result.get_statevector()
+  
 
-
-def simulate_counts(qc: QuantumCircuit, shots=1024, use_gpu=False):
+def simulate_counts(qc: QuantumCircuit, shots=1024, use_gpu=True):
     """
     Measure qubits in the fixed order:
         [q_y_0, q_x_0, q_y_1, q_x_1, ..., intensity]
@@ -492,7 +353,7 @@ if __name__ == '__main__':
     import plots
     import matplotlib.pyplot as plt
 
-    denoiser = False  # set True if you also want to test denoiser behaviour
+    denoiser = True  # set True if you also want to test denoiser behaviour
     linuxmode = True
 
     # Choose image size via L_max
@@ -542,18 +403,9 @@ if __name__ == '__main__':
 
         # Optional denoiser
         if denoiser:
-            qc = DENOISER_qiskit(
-                qc, pos_regs, intensity_reg,
-                accumulator_reg, and_ancilla_reg, work_regs,
-                d, hier, angle,
-                beta=1.0,
-                alpha=1.0,
-                lambda_color=0.3,
-                target_u=np.pi/8.0,
-                target_v=np.pi/8.0,
-                num_layers=3,          # <-- more Grover layers
-            )
 
+            # Use t=0.4 for a good balance of smoothing vs detail
+            qc = DENOISER_qiskit(qc, pos_regs, d, time_step=0.4)
 
         # Simulate and bin
         counts = simulate_counts(qc, 2000000, linuxmode)

@@ -1,7 +1,5 @@
-runs/
 test_circuit_qiskit.py
 .venv_wsl/
-mhrqi_runs.csv
 __pycache__/
 mqt-qudits-sparse/
 sparse_improvements_plan.md
