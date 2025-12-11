@@ -84,6 +84,10 @@ def digits_to_int(digits: Iterable[int], base: int, msb_first: bool = True) -> i
     return value
 
 
+def empty_bin():
+    return {"miss": 0.0, "hit": 0.0, "trials": 0.0}
+
+
 def sort_by_dary(big_array: List[List[int]], d: int, msb_first: bool = True) -> List[List[int]]:
     return sorted(big_array, key=lambda arr: digits_to_int(arr, d, msb_first=msb_first))
 
@@ -124,20 +128,14 @@ def expand_and_sort_denoised(big_array: List[List[int]], msb_first: bool = True)
         sorted_final = sort_by_dary(expanded, d, msb_first=msb_first)
     return sorted_final
 
-
-def empty_bin():
-    return {"miss": 0.0, "hit": 0.0, "trials": 0.0}
-
 def make_bins(counts, hierarchy_matrix):
     bins = defaultdict(empty_bin)
     sorted = expand_and_sort(hierarchy_matrix)
-    print(sorted)
-    print(counts)
 
     for i in counts: #for each i na makuha natin, hanapin natin yung respective register
-        print(i) # i is a state count
+        #print(i) # i is a state count
         curr = sorted[i].copy()
-        print(curr)
+        #print(curr)
         h = curr.pop()
         key = tuple(curr)
         if h == 1:
@@ -171,8 +169,6 @@ def make_bins_denoised(counts, hierarchy_matrix):
 def make_bins_sv(state_vector, hierarchy_matrix, d=2):
     bins = defaultdict(empty_bin)
     sorted = expand_and_sort(hierarchy_matrix)
-    print(sorted)
-    print(state_vector)
     sv = np.array(state_vector)  # ensure its a NumPy array
     sv_flat = sv.flatten()      # flatten in row-major order
 
