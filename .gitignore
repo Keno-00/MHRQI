@@ -4,3 +4,6 @@ __pycache__/
 mqt-qudits-sparse/
 sparse_improvements_plan.md
 test_statevector_consistency_backup.py
+runs/
+.venv/
+cuda-keyring_1.1-1_all.deb
