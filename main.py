@@ -3,11 +3,13 @@ import matplotlib.pyplot as plt
 import utils
 import circuit
 import circuit_qiskit as circuit_2
+import circuit_dd as circuit3
 import numpy as np
 import plots
 from pathlib import Path
 from datetime import datetime
 import csv
+import time
 
 import matplotlib
 import os
@@ -15,7 +17,7 @@ import os
 HEADLESS = matplotlib.get_backend().lower().endswith("agg")
 
 if HEADLESS:
-    linuxmode = False
+    linuxmode = True
 
 
 CSV_PATH = Path("mhrqi_runs.csv")
@@ -32,20 +34,22 @@ def save_rows_to_csv(rows, csv_path=CSV_PATH):
             w.writeheader()
         w.writerows(rows)
 
-def main(shots=1000, n=4, d=2, denoise=False, use_shots=True,compiler = False,qiskit_mode = False):
+def main(shots=1000, n=4, d=2, denoise=False, use_shots=True,qiskit_mode = False, dd_mode = False):
     myimg = cv2.imread("resources/cnv.jpeg")
     myimg = cv2.resize(myimg, (n,n))
+    
+    
     myimg = cv2.cvtColor(myimg, cv2.COLOR_RGB2GRAY)
     N = myimg.shape[1]
-    
     angle_norm = utils.angle_map(myimg)
+    normalized_img = np.clip(myimg.astype(np.float64) / 255.0, 0.0, 1.0)
+    
+    
     H, W = angle_norm.shape
     L_max = utils.get_Lmax(N, d)
-    
     sk = []
     for L in range(0, L_max):
         sk.append(N if L == 0 else utils.get_subdiv_size(L, N, d))
-    
     hierarchy_matrix = []
     for r, c in np.ndindex(H, W):
         hcv = []
@@ -53,65 +57,58 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True,compiler = False,qi
             sub_hcv = utils.compute_register(r, c, d, k)
             hcv.extend(sub_hcv)
         hierarchy_matrix.append(hcv)
+
+    intensity_dict = {}
+    for i, hcv in enumerate(hierarchy_matrix):
+        r, c = utils.compose_rc(hcv, d) 
+        bitstring_key = ''.join(str(x) for x in hcv)
+        intensity_dict[bitstring_key] = normalized_img[r, c]
+
+
+    
     
 
     if qiskit_mode:
-        qc, pos_regs, intensity_reg, accumulator_reg, and_ancilla_reg, work_regs = circuit_2.MHRQI_init_qiskit(d, L_max)
+        qc, pos_regs, intensity_reg = circuit_2.MHRQI_init_qiskit(d, L_max)
         data_qc = circuit_2.MHRQI_upload_intensity_qiskit(qc, pos_regs, intensity_reg, d, hierarchy_matrix, angle_norm)
     else:
-        qc, reg = circuit.MHRQI_init(d, L_max)
-        data_qc = circuit.MHRQI_upload_intensity(qc, reg, d, hierarchy_matrix, angle_norm)
+        if dd_mode:
+            qc, reg = circuit3.MHRQI_init(d, L_max)
+            data_qc = circuit3.MHRQI_upload_intensity(qc,reg ,intensity_dict, approx_threshold=0.1)  # Higher threshold for more pruning
+        else:
+            qc, reg = circuit.MHRQI_init(d, L_max)
+            data_qc = circuit.MHRQI_upload_intensity(qc, reg, d, hierarchy_matrix, angle_norm)
+
     
     if denoise:
         if qiskit_mode:
-            data_qc = circuit_2.DENOISER_qiskit(qc, pos_regs, intensity_reg, accumulator_reg, and_ancilla_reg, work_regs, d, hierarchy_matrix, angle_norm)
+            data_qc = circuit_2.DENOISER_qiskit(qc, pos_regs, d)
         else:
-            data_qc = circuit_2.DENOISER_qiskit(
-                qc, pos_regs, intensity_reg,
-                accumulator_reg, and_ancilla_reg, work_regs,
-                d, hierarchy_matrix, angle_norm,
-                beta=1.0,
-                alpha=1.0,
-                lambda_color=0.3,
-                target_u=np.pi/8.0,
-                target_v=np.pi/8.0,
-                num_layers=3,          # <-- more Grover layers
-            )
-    
+            data_qc = circuit.DENOISER(qc, reg, d, hierarchy_matrix, angle_norm, )
+
     # Simulate based on flag
-    if use_shots:
-        if qiskit_mode:
+    start_time = time.perf_counter()
+
+    
+    if qiskit_mode:
+        if use_shots:
             counts = circuit_2.simulate_counts(qc, shots,linuxmode)
+            print("finished simulation")
+            bins = circuit_2.make_bins_qiskit(counts,hierarchy_matrix)
         else:
-            if compiler:
-                counts = circuit.MHRQI_compiled(data_qc, shots)
-            else:
-                counts = circuit.MHRQI_simulate(data_qc, shots)
-
-        if qiskit_mode:
-            if denoise:
-                bins = circuit_2.make_bins_denoised_qiskit(counts,hierarchy_matrix)
-            else:
-
-                bins = circuit_2.make_bins_qiskit(counts,hierarchy_matrix)
-        else:
-            if denoise:
-                bins = utils.make_bins_denoised(counts, hierarchy_matrix)
-            else:
-                bins = utils.make_bins(counts, hierarchy_matrix)
-    else:
-
-        if qiskit_mode:
             print("not implemented")
+    else:
+        if use_shots:
+            counts = circuit.MHRQI_simulate(data_qc,shots=shots)
+            print("finished simulation")
+            bins = utils.make_bins(counts, hierarchy_matrix)
+        
         else:
-            state_vector = circuit.MHRQI_simulate_state_vector(data_qc)
-            print(state_vector)
-
-
-            if denoise:
-                bins = utils.make_bins_sv_denoised(state_vector, hierarchy_matrix)
-            else:
-                bins = utils.make_bins_sv(state_vector, hierarchy_matrix)
+            state_vector = circuit.MHRQI_simulate(data_qc)
+            print("finished simulation")
+            bins = utils.make_bins_sv(state_vector, hierarchy_matrix)
+    end_time = time.perf_counter()
+    print(f"Simulation time: {end_time - start_time:.4f} seconds")
     # plots.plot_hits_grid(bins,d,N,kind="hit")
     # plots.plot_hits_grid(bins,d,N,kind="miss")
     #print(bins)
@@ -130,7 +127,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True,compiler = False,qi
     
 
 if __name__ == "__main__":
-    n = 729
+    n = 27
     qudit_d =3 # qubit  =  2, qutrit =  3, ququart = 4
                 #uses qiskit on qubits.
     if qudit_d ==2:
@@ -138,17 +135,18 @@ if __name__ == "__main__":
     else:
         qiskit_mode = False
 
+
     bin_of_n = 2*(n**2)
     tests = 10
     do_tests = False
-    shots = [900]
+    shots = [10000000]
     run_psnr = []
     run_mse = []
     rows = []
 
     denoise = False
     use_shots = False
-    compiler = False
+    dd_mode = True
 
     if do_tests:
         for j in range(2, tests):
@@ -156,12 +154,12 @@ if __name__ == "__main__":
 
     for i in shots:
         #print(f"Image size: {n}x{n}\nBins: {bin_of_n}\nCurrent Shots: {i}\nShots per Bin: {i/bin_of_n}")
-        gt_img, rec_img = main(i,n,qudit_d,denoise,use_shots,compiler,qiskit_mode)
+        gt_img, rec_img = main(i,n,qudit_d,denoise,use_shots,qiskit_mode, dd_mode)
         #gt_img, rec_img = main_state_vector(n,qudit_d,denoise=True)
         #main(i, n)
 
-#         plots.plot_mse_map(gt_img, rec_img)
-#         plots.plot_psnr_map(gt_img, rec_img)
+        plots.plot_mse_map(gt_img, rec_img)
+        plots.plot_psnr_map(gt_img, rec_img)
 
 #         i_mse = plots.compute_mse(gt_img, rec_img)
 #         i_psnr = plots.compute_psnr(gt_img, rec_img)
