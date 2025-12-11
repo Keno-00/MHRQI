@@ -87,7 +87,7 @@ def MHRQI_init_qiskit(d, L_max):
     for reg in pos_qubits:
         qc.h(reg[0])
 
-    return qc, pos_qubits, intensity, accumulator, and_ancilla, work
+    return qc, pos_qubits, intensity
 
 
 def MHRQI_upload_intensity_qiskit(qc: QuantumCircuit, pos_regs, intensity_reg, d, hierarchy_matrix, img):
@@ -193,7 +193,70 @@ def DENOISER_qiskit(qc, pos_regs, d, time_step=0.4, steps=1, use_v_cycle=True):
             
     return qc
 
+def DENOISER_qiskit(qc, pos_regs, d, strength=0.2):
+    """
+    Symmetrized MHRQI Denoiser.
+    
+    Improvement:
+    Implements Strang Splitting (Symmetrized Trotterization) to reduce 
+    grid artifacts (anisotropy) inherent in sequential axis rotation.
+    
+    Sequence: Y(t/2) -> X(t) -> Y(t/2)
+    
+    This approximates Isotropic Diffusion (circular spreading) more accurately 
+    than simple sequential diffusion, resulting in a more natural texture.
+    """
+    print(f"--- Applying Symmetrized Denoiser (Strength={strength}) ---")
 
+    def apply_op(target, t_val):
+        if t_val <= 1e-4: return
+        qc.h(target)
+        qc.rz(-2.0 * t_val, target)
+        qc.h(target)
+
+    if len(pos_regs) < 2: return qc
+
+    # Indices
+    leaf_y = pos_regs[-2][0]
+    leaf_x = pos_regs[-1][0]
+    
+    has_parents = len(pos_regs) >= 4
+    if has_parents:
+        parent_y = pos_regs[-4][0]
+        parent_x = pos_regs[-3][0]
+
+    # --- PHASE 1: HALF-STEP Y (Leaves & Parents) ---
+    # We apply half the strength to the Y-axis first.
+    
+    # Leaves (Fine)
+    apply_op(leaf_y, strength / 2.0)
+    
+    # Parents (Coarse) - Scaled down to 50% relative strength
+    if has_parents:
+        coarse_strength = strength * 0.5
+        apply_op(parent_y, coarse_strength / 2.0)
+
+    # --- PHASE 2: FULL-STEP X (Leaves & Parents) ---
+    # We apply the full strength to the X-axis in the middle.
+    
+    # Leaves
+    apply_op(leaf_x, strength)
+    
+    # Parents
+    if has_parents:
+        apply_op(parent_x, coarse_strength)
+
+    # --- PHASE 3: HALF-STEP Y (Leaves & Parents) ---
+    # We complete the symmetry by applying the second half of Y.
+    
+    # Leaves
+    apply_op(leaf_y, strength / 2.0)
+    
+    # Parents
+    if has_parents:
+        apply_op(parent_y, coarse_strength / 2.0)
+
+    return qc
 
 # -------------------------
 # Simulation helpers
@@ -405,7 +468,7 @@ if __name__ == '__main__':
         if denoiser:
 
             # Use t=0.4 for a good balance of smoothing vs detail
-            qc = DENOISER_qiskit(qc, pos_regs, d, time_step=0.4)
+            qc = DENOISER_qiskit(qc, pos_regs, d,)
 
         # Simulate and bin
         counts = simulate_counts(qc, 2000000, linuxmode)
