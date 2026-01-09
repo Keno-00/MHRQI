@@ -109,33 +109,12 @@ def expand_and_sort(big_array: List[List[int]], msb_first: bool = True) -> List[
         sorted_final = sort_by_dary(expanded, d, msb_first=msb_first)
     return sorted_final
 
-def expand_and_sort_denoised(big_array: List[List[int]], msb_first: bool = True) -> List[List[int]]:
-    sorted_initial = sort_by_binary(big_array, msb_first=msb_first)
-    expanded = []
-    for arr in sorted_initial:
-        # Add both mean (0/1) and color (0/1) = 4 combinations
-        for mean_bit in [0, 1]:
-            for color_bit in [0, 1]:
-                expanded.append(arr + [mean_bit, color_bit])
-    
-    # Detect if binary
-    is_binary = all(val in (0, 1) for arr in expanded for val in arr)
-    if is_binary:
-        sorted_final = sort_by_binary(expanded, msb_first=msb_first)
-    else:
-        max_val = max(val for arr in expanded for val in arr)
-        d = max_val + 1
-        sorted_final = sort_by_dary(expanded, d, msb_first=msb_first)
-    return sorted_final
-
 def make_bins(counts, hierarchy_matrix):
     bins = defaultdict(empty_bin)
     sorted = expand_and_sort(hierarchy_matrix)
 
-    for i in counts: #for each i na makuha natin, hanapin natin yung respective register
-        #print(i) # i is a state count
+    for i in counts:
         curr = sorted[i].copy()
-        #print(curr)
         h = curr.pop()
         key = tuple(curr)
         if h == 1:
@@ -144,26 +123,6 @@ def make_bins(counts, hierarchy_matrix):
             bins[key]["miss"] += 1
         bins[key]["trials"] += 1
 
-    return bins
-
-def make_bins_denoised(counts, hierarchy_matrix):
-    bins = defaultdict(empty_bin)
-    sorted_expanded = expand_and_sort_denoised(hierarchy_matrix)
-    
-    for i in counts:  # i is an index
-        curr = sorted_expanded[i].copy()
-        
-        mean_bit = curr.pop()
-        color_bit = curr.pop()
-        key = tuple(curr)
-        
-        if mean_bit == 0:
-            if color_bit == 1:
-                bins[key]["hit"] += 1
-            else:
-                bins[key]["miss"] += 1
-            bins[key]["trials"] += 1
-    
     return bins
 
 def make_bins_sv(state_vector, hierarchy_matrix, d=2):
@@ -187,78 +146,189 @@ def make_bins_sv(state_vector, hierarchy_matrix, d=2):
     return bins
 
 
+# NOTE: The *_denoised binning functions were removed.
+# If MQT qudits denoising is implemented in circuit.py, you will need either:
+# 1. Selective measurement support (like Qiskit) to exclude ancilla qubits, OR
+# 2. Post-measurement binning functions that filter out ancilla bits
+# See circuit.py for related notes.
 
 
 
-def make_bins_sv_denoised(state_vector, hierarchy_matrix, d=2):
-    bins = defaultdict(empty_bin)
-    sorted = expand_and_sort_denoised(hierarchy_matrix)
+def mhrqi_bins_to_image(bins, hierarchy_matrix, d, image_shape, bias_stats=None, original_img=None):
+    """
+    Convert unified MHRQI bins to image with hierarchical seam-aware denoising.
     
-    sv = np.array(state_vector)
-    sv_flat = sv.flatten()
-
-    for index, i in enumerate(sv_flat):
-        prb = np.abs(i)**2
-        curr = sorted[index].copy()
+    Args:
+        bins: bins from make_bins_sv (contains probability 'count' per position)
+        hierarchy_matrix: position state matrix
+        d: dimension
+        image_shape: target image shape (rows, cols)
+        bias_stats: optional dict (not used in walker mode)
+        original_img: REQUIRED - original normalized image [0,1] for denoising
+    
+    Returns:
+        img: reconstructed image with edge-preserving denoising
+    
+    Hierarchical Seam-Aware Denoising:
+        - Extract edge weights from walker probability distribution
+        - Smooth ONLY within sibling blocks at each hierarchy level
+        - Stronger smoothing for non-edges, preserve edges
+    """
+    img = np.zeros(image_shape)
+    N = image_shape[0]
+    L_max = int(np.log2(N))
+    
+    # Extract edge map from walker probability
+    # INTERPRETATION: 
+    #   HIGH probability = walker concentrates here = NOISY/UNIFORM region = should FLATTEN
+    #   LOW probability = walker avoids = EDGE/STRUCTURE = should PRESERVE
+    total_prob = sum(bins[tuple(v)]['count'] for v in hierarchy_matrix if tuple(v) in bins)
+    n_pixels = len(hierarchy_matrix)
+    uniform_prob = total_prob / n_pixels if n_pixels > 0 else 1.0
+    
+    edge_map = {}
+    for vec in hierarchy_matrix:
+        key = tuple(vec)
+        if key in bins and bins[key]['count'] > 0:
+            prob = bins[key]['count']
+            r, c = compose_rc(vec, d)
+            # edge_weight: HIGH prob = noisy (flatten), LOW prob = edge (preserve)
+            edge_map[(r, c)] = min(prob / uniform_prob, 1.0) if uniform_prob > 0 else 0.5
+    
+    # If no original image, just return intensity from bins
+    if original_img is None:
+        for vec in hierarchy_matrix:
+            key = tuple(vec)
+            if key in bins and bins[key]['count'] > 0:
+                avg_intensity = bins[key]['intensity_sum'] / bins[key]['count']
+                r, c = compose_rc(vec, d)
+                img[r, c] = avg_intensity
+        return img
+    
+    # Helper: get siblings at level k (same parent block)
+    def get_siblings(r, c, k, N, d):
+        """Get sibling pixel coordinates at hierarchy level k"""
+        block_size = N // (d ** k)
+        if block_size < 1:
+            return []
+        block_r = (r // block_size) * block_size
+        block_c = (c // block_size) * block_size
+        siblings = []
+        for dr in range(block_size):
+            for dc in range(block_size):
+                sr, sc = block_r + dr, block_c + dc
+                if (sr, sc) != (r, c) and 0 <= sr < N and 0 <= sc < N:
+                    siblings.append((sr, sc))
+        return siblings
+    
+    # Helper: check if block at level k is homogeneous
+    def is_block_homogeneous(r, c, k, N, d, edge_map, threshold=0.25):
+        """Check if block is homogeneous (uniform, no edges)"""
+        block_size = N // (d ** k)
+        if block_size < 2:
+            return False
+        block_r = (r // block_size) * block_size
+        block_c = (c // block_size) * block_size
         
-        mean_bit = curr.pop()
-        color_bit = curr.pop()
-        key = tuple(curr)
+        weights = []
+        for dr in range(block_size):
+            for dc in range(block_size):
+                sr, sc = block_r + dr, block_c + dc
+                if 0 <= sr < N and 0 <= sc < N:
+                    weights.append(edge_map.get((sr, sc), 0.5))
         
-        # Only count if mean_bit == 0 (uncompute succeeded)
-        if mean_bit == 0:
-            if color_bit == 1:
-                bins[key]["hit"] += prb
+        if len(weights) < 2:
+            return False
+        
+        # Two criteria for homogeneity:
+        # 1. Low variance (all similar weights)
+        # 2. High mean (no edges in block - edges have low weight)
+        variance = max(weights) - min(weights)
+        mean_weight = sum(weights) / len(weights)
+        
+        # Block is homogeneous only if uniform AND no edges
+        return variance < threshold and mean_weight > 0.6
+    
+    # Helper: check if block contains any edges (low weight pixels)
+    def block_has_edges(r, c, k, N, d, edge_map, edge_threshold=0.91):  # Higher = more aggressive preserve
+        """Check if block contains pixels with low edge weight (edges)"""
+        block_size = N // (d ** k)
+        if block_size < 1:
+            return False
+        block_r = (r // block_size) * block_size
+        block_c = (c // block_size) * block_size
+        
+        for dr in range(block_size):
+            for dc in range(block_size):
+                sr, sc = block_r + dr, block_c + dc
+                if 0 <= sr < N and 0 <= sc < N:
+                    if edge_map.get((sr, sc), 0.5) < edge_threshold:
+                        return True
+        return False
+    
+    # =========================================
+    # PIXEL-PRECISE EDGE-WEIGHT BASED DENOISING
+    # =========================================
+    # Directly use edge_weight at each pixel:
+    #   Low weight (< threshold) = edge = preserve
+    #   High weight (> threshold) = flat = can smooth
+    # Smoothing strength depends on:
+    #   1. How flat this pixel is (edge_weight)
+    #   2. How flat its neighbors are (neighbor preserve ratio)
+    
+    edge_threshold = 0.85  # Higher = more preserve (was 0.81, now 0.85)
+    
+    for r in range(N):
+        for c in range(N):
+            orig_intensity = original_img[r, c]
+            edge_w = edge_map.get((r, c), 0.5)
+            
+            if edge_w < edge_threshold:
+                # Edge pixel - preserve original
+                final_intensity = orig_intensity
             else:
-                bins[key]["miss"] += prb
-            bins[key]["trials"] += prb
-
-    return bins
-
-
-def p_hat(bins, hcv, eps=0.0):
-    v = bins[hcv]
-    t = v["trials"]
-    if t == 0:
-        return 0.0
-    return (v["hit"] + eps) / (t + 2*eps) # hit over hit+miss
-
-
-####################
-# $3$ denoiser functions
-####################
-
-def v_eff(theta_a, interaction, alpha):
-    sin_a_half = math.sin(theta_a / 2)
-    j = alpha * abs(sin_a_half**2)
+                # Flat region - check neighbors for precise flatten
+                smooth_level = L_max - 1
+                siblings = get_siblings(r, c, smooth_level, N, d)
+                
+                if siblings:
+                    # Count flat vs preserve neighbors
+                    flat_siblings = [(sr, sc) for sr, sc in siblings 
+                                    if edge_map.get((sr, sc), 0.5) >= edge_threshold]
+                    preserve_siblings = [(sr, sc) for sr, sc in siblings 
+                                        if edge_map.get((sr, sc), 0.5) < edge_threshold]
+                    
+                    # Neighbor ratio: 1.0 = all flat, 0.0 = all preserve
+                    flat_ratio = len(flat_siblings) / len(siblings)
+                    
+                    if flat_siblings and flat_ratio > 0.67:
+                        # NON-LINEAR STRENGTH: exponential curve
+                        # flat_ratio^3 → only VERY flat regions get strong smoothing
+                        # 1.0^3 = 1.0 (full strength)
+                        # 0.8^3 = 0.51 (half strength)
+                        # 0.7^3 = 0.34 (weak)
+                        
+                        base_strength = (edge_w - edge_threshold) / (1.0 - edge_threshold)
+                        
+                        # Non-linear: cube of flat_ratio
+                        flatness_power = flat_ratio ** 3
+                        
+                        # Final smooth strength (100% for absolutely flat)
+                        smooth_strength = base_strength * flatness_power * 1.0
+                        
+                        sibling_avg = sum(original_img[sr, sc] for sr, sc in flat_siblings) / len(flat_siblings)
+                        final_intensity = (1 - smooth_strength) * orig_intensity + smooth_strength * sibling_avg
+                    else:
+                        # Too many preserve neighbors - don't smooth
+                        final_intensity = orig_intensity
+                else:
+                    final_intensity = orig_intensity
+            
+            img[r, c] = final_intensity
     
-    
-    return j+ interaction
-
-
-def g_matrix(thetas, beta):
-    """
-    Compute g for all pairwise interactions between values in thetas list.
-    Returns a matrix where entry (i,j) is g(thetas[i], thetas[j], beta).
-    """
-    thetas = np.array(thetas)
-    theta_a_grid, theta_b_grid = np.meshgrid(thetas, thetas, indexing='ij')
-    sin_a_half = np.sin(theta_a_grid / 2)
-    sin_b_half = np.sin(theta_b_grid / 2)
-    return beta * np.abs(sin_a_half**2 - sin_b_half**2)
-
-
-
-
-def interactions(matrix):
-    """
-    Compute the sum of each row in the matrix, returning a column vector.
-    """
-    return np.sum(matrix, axis=1, keepdims=True)
+    return img
 
 
 
 
 
-#res = g_matrix([1,1.2,0.9,2],1)
-#print(interactions(res))

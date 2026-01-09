@@ -8,3 +8,6 @@ runs/
 .venv/
 cuda-keyring_1.1-1_all.deb
 cuda-keyring_1.1-1_all.deb
+venv/
+evals/
+docs/

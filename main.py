@@ -10,14 +10,12 @@ from pathlib import Path
 from datetime import datetime
 import csv
 import time
-
+import compare_to
 import matplotlib
 import os
 
-HEADLESS = matplotlib.get_backend().lower().endswith("agg")
 
-if HEADLESS:
-    linuxmode = True
+linuxmode = True
 
 
 CSV_PATH = Path("mhrqi_runs.csv")
@@ -34,9 +32,36 @@ def save_rows_to_csv(rows, csv_path=CSV_PATH):
             w.writeheader()
         w.writerows(rows)
 
-def main(shots=1000, n=4, d=2, denoise=False, use_shots=True,qiskit_mode = False, dd_mode = False):
-    myimg = cv2.imread("resources/cnv.jpeg")
-    myimg = cv2.resize(myimg, (n,n))
+def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, backend='qiskit_mhrqi', fast=False, verbose_plots=False, img_path=None, run_comparison=True):
+    """
+    Main MHRQI/MHRQIB simulation pipeline.
+    
+    Args:
+        shots: number of measurement shots (if use_shots=True)
+        n: image dimension (will be resized to n x n)
+        d: qudit dimension (2=qubit, 3=qutrit, etc.)
+        denoise: whether to apply denoising circuit
+        use_shots: if True, use shot-based simulation; if False, use statevector
+        backend: one of 'qiskit_mhrqi', 'qiskit_mhrqib', 'mqt_mhrqi', 'mqt_dd_mhrqi'
+        fast: if True, use lazy (statevector-based) upload for speed
+        verbose_plots: if True, show additional debug plots
+        img_path: path to input image (defaults to resources/drusen1.jpeg)
+        run_comparison: if True, run comparison benchmarks against BM3D/NL-Means/SRAD
+    
+    Returns:
+        tuple: (original_image, reconstructed_image, run_directory_path)
+    """
+    # Validate backend
+    valid_backends = {'qiskit_mhrqi', 'qiskit_mhrqib', 'mqt_mhrqi', 'mqt_dd_mhrqi'}
+    if backend not in valid_backends:
+        raise ValueError(f"Invalid backend '{backend}'. Must be one of: {valid_backends}")
+    
+    # Use default image if not specified
+    if img_path is None:
+        img_path = os.path.join(os.path.dirname(__file__), "resources", "drusen1.jpeg")
+    
+    myimg = cv2.imread(img_path)
+    myimg = cv2.resize(myimg, (n, n))
     
     
     myimg = cv2.cvtColor(myimg, cv2.COLOR_RGB2GRAY)
@@ -58,108 +83,216 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True,qiskit_mode = False
             hcv.extend(sub_hcv)
         hierarchy_matrix.append(hcv)
 
-    intensity_dict = {}
-    for i, hcv in enumerate(hierarchy_matrix):
-        r, c = utils.compose_rc(hcv, d) 
-        bitstring_key = ''.join(str(x) for x in hcv)
-        intensity_dict[bitstring_key] = normalized_img[r, c]
+    # -------------------------
+    # Dictionary Prep (for MQT backends)
+    # -------------------------
+    intensity_dict = None
+    if 'mqt' in backend:
+        intensity_dict = {}
+        for i, hcv in enumerate(hierarchy_matrix):
+            r, c = utils.compose_rc(hcv, d) 
+            bitstring_key = ''.join(str(x) for x in hcv)
+            intensity_dict[bitstring_key] = normalized_img[r, c]
 
-
-    
-    
-
-    if qiskit_mode:
-        qc, pos_regs, intensity_reg = circuit_2.MHRQI_init_qiskit(d, L_max)
-        data_qc = circuit_2.MHRQI_upload_intensity_qiskit(qc, pos_regs, intensity_reg, d, hierarchy_matrix, angle_norm)
-    else:
-        if dd_mode:
-            qc, reg = circuit3.MHRQI_init(d, L_max)
-            data_qc = circuit3.MHRQI_upload_intensity(qc,reg ,intensity_dict, approx_threshold=0.1)  # Higher threshold for more pruning
+    # -------------------------
+    # Circuit Construction
+    # -------------------------
+    if backend == 'qiskit' or backend == 'qiskit_mhrqib':
+        # Unified MHRQI with basis-encoded intensity and bias qubit
+        qc, pos_regs, intensity_reg, bias = circuit_2.MHRQI_init_qiskit(d, L_max)
+        upload_fn = circuit_2.MHRQIB_lazy_upload_intensity_qiskit if fast else circuit_2.MHRQIB_upload_intensity_qiskit
+        data_qc = upload_fn(qc, pos_regs, intensity_reg, d, hierarchy_matrix, normalized_img)
+        
+    elif backend == 'mqt_dd_mhrqi':
+        qc, reg = circuit3.MHRQI_init(d, L_max)
+        bias = None
+        pos_regs = None
+        intensity_reg = None
+        data_qc = circuit3.MHRQI_upload_intensity(qc, reg, intensity_dict, approx_threshold=0.1)
+        
+    elif backend == 'mqt_mhrqi':
+        qc, reg = circuit.MHRQI_init(d, L_max)
+        bias = None
+        pos_regs = None
+        intensity_reg = None
+        upload_fn = circuit.MHRQI_lazy_upload_intensity if fast else circuit.MHRQI_upload_intensity
+        if fast:
+            data_qc = upload_fn(qc, reg, intensity_dict, approx_threshold=0.01)
         else:
-            qc, reg = circuit.MHRQI_init(d, L_max)
-            data_qc = circuit.MHRQI_upload_intensity(qc, reg, d, hierarchy_matrix, angle_norm)
+            data_qc = upload_fn(qc, reg, d, hierarchy_matrix, angle_norm)
 
-    
+    # -------------------------
+    # Denoising
+    # -------------------------
     if denoise:
-        if qiskit_mode:
-            data_qc = circuit_2.DENOISER_qiskit(qc, pos_regs, d)
+        if backend in ['qiskit', 'qiskit_mhrqib']:
+            data_qc = circuit_2.DENOISER_qiskit(data_qc, pos_regs, intensity_reg, bias, strength=1.65)
         else:
-            data_qc = circuit.DENOISER(qc, reg, d, hierarchy_matrix, angle_norm, )
+            data_qc = circuit.DENOISER(data_qc, reg, d, L_max, time_step=0.5)
 
-    # Simulate based on flag
+    # -------------------------
+    # Simulation
+    # -------------------------
     start_time = time.perf_counter()
 
-    
-    if qiskit_mode:
+    if backend in ['qiskit', 'qiskit_mhrqib']:
         if use_shots:
-            counts = circuit_2.simulate_counts(qc, shots,linuxmode)
+            counts = circuit_2.simulate_counts(data_qc, shots, use_gpu=True)
             print("finished simulation")
-            bins = circuit_2.make_bins_qiskit(counts,hierarchy_matrix)
+            # TODO: Add counts-based make_bins with denoise flag
+            bins = circuit_2.make_bins_mhrqib_qiskit(counts, hierarchy_matrix)
+            bias_stats = None
         else:
-            print("not implemented")
+            state_vector = circuit_2.simulate_statevector(data_qc)
+            print("finished simulation")
+            if denoise:
+                bins, bias_stats = circuit_2.make_bins_sv(state_vector, hierarchy_matrix, denoise=True)
+            else:
+                bins = circuit_2.make_bins_sv(state_vector, hierarchy_matrix, denoise=False)
+                bias_stats = None
     else:
+        # MQT
+        bias_stats = None
         if use_shots:
-            counts = circuit.MHRQI_simulate(data_qc,shots=shots)
+            counts = circuit.MHRQI_simulate(data_qc, shots=shots)
             print("finished simulation")
             bins = utils.make_bins(counts, hierarchy_matrix)
-        
         else:
             state_vector = circuit.MHRQI_simulate(data_qc)
             print("finished simulation")
             bins = utils.make_bins_sv(state_vector, hierarchy_matrix)
+            
     end_time = time.perf_counter()
     print(f"Simulation time: {end_time - start_time:.4f} seconds")
-    # plots.plot_hits_grid(bins,d,N,kind="hit")
-    # plots.plot_hits_grid(bins,d,N,kind="miss")
-    #print(bins)
-    grid = plots.bins_to_grid(bins,d,N,kind="p")
-    #grid,_,_,_=plots.plot_hits_grid(bins,d,N,kind="p")
-    # plots.plot_hits_scatter(bins,d,N,kind="hit")
-    # plots.plot_hits_scatter(bins,d,N,kind="miss")
-    # plots.plot_hits_scatter(bins,d,N,kind="p")
-    
-    newimg = plots.grid_to_image_uint8(grid,0.0,1.0)
-    plots.show_image_comparison(myimg,newimg)
-    return myimg,newimg
+            
+    # -------------------------
+    # Reconstruction
+    # -------------------------
+    if backend in ['qiskit', 'qiskit_mhrqib']:
+        # Pass original normalized image for walker-based edge denoising
+        newimg = utils.mhrqi_bins_to_image(bins, hierarchy_matrix, d, (N, N), 
+                                            bias_stats=bias_stats,)
+        newimg = (np.clip(newimg, 0.0, 1.0) * 255).astype(np.uint8)
+    else:
+        newimg = plots.bins_to_image(bins, d, N, kind="p")
+    # -------------------------
+    # Verbose Plots (Homogeneity Map)
+    # -------------------------
+    if verbose_plots and denoise and backend in ['qiskit', 'qiskit_mhrqib']:
+        # Extract edge_map for visualization
+        total_prob = sum(bins[tuple(v)]['count'] for v in hierarchy_matrix if tuple(v) in bins)
+        uniform_prob = total_prob / len(hierarchy_matrix) if len(hierarchy_matrix) > 0 else 1.0
+        
+        edge_map = {}
+        for vec in hierarchy_matrix:
+            key = tuple(vec)
+            if key in bins:
+                prob = bins[key]['count']
+                r, c = utils.compose_rc(vec, d)
+                edge_map[(r, c)] = min(prob / uniform_prob, 1.0) if uniform_prob > 0 else 0.5
+        
+        plots.plot_homogeneity_map(edge_map, normalized_img, N, d, L_max, threshold=0.4)
 
-#
-
+    # -------------------------
+    # Create run directory
+    # -------------------------
+    run_dir = plots.get_run_dir()
     
+    # Save settings
+    settings = {
+        'Image': os.path.basename(img_path) if img_path else 'drusen1.jpeg',
+        'Size': f'{n}x{n}',
+        'Backend': backend,
+        'Fast Mode': fast,
+        'Denoise': denoise,
+        'Use Shots': use_shots,
+        'Shots': shots if use_shots else 'N/A (statevector)',
+        'd (qudit dim)': d,
+        'Simulation Time': f'{end_time - start_time:.2f}s'
+    }
+    plots.save_settings_plot(settings, run_dir)
+    
+    # Get a clean image name from path
+    img_name = os.path.splitext(os.path.basename(img_path or 'drusen1.jpeg'))[0]
+    plots.show_image_comparison(myimg, newimg, run_dir=run_dir, img_name=img_name)
+    
+    # -------------------------
+    # Run comparison benchmarks
+    # -------------------------
+    if run_comparison:
+        evals_dir = os.path.join(run_dir, "evals")
+        print(f"Running benchmarks... saving to {evals_dir}")
+        
+        # Prepare Reference (NL-Means) as "Ground Truth" for Full-Ref metrics
+        nlmeans_ref = None
+        print("Generating NL-Means reference...")
+        try:
+            input_float = compare_to.to_float01(myimg)
+            nlmeans_ref = compare_to.denoise_nlmeans(input_float)
+        except Exception as e:
+            print(f"Warning: NL-Means generation failed: {e}")
+        
+        compare_to.compare_to(
+            myimg,
+            proposed_img=newimg,
+            methods="all",
+            plot=True,
+            save=True,
+            save_prefix="comp",
+            save_dir=evals_dir,
+            reference_image=nlmeans_ref
+        )
+    
+    return myimg, newimg, run_dir
+
 
 if __name__ == "__main__":
-    n = 27
-    qudit_d =3 # qubit  =  2, qutrit =  3, ququart = 4
-                #uses qiskit on qubits.
-    if qudit_d ==2:
-        qiskit_mode = True
-    else:
-        qiskit_mode = False
+    # Configuration
+    n = 128  # Image size (64x64 for fast testing)
+    d = 2   # qudit dimension: 2=qubit
+    
+    # Backend options: 'qiskit_mhrqi', 'qiskit_mhrqib', 'mqt_mhrqi', 'mqt_dd_mhrqi'
+    backend = 'qiskit_mhrqib'
+    
+    # Simulation settings
+    use_shots = False       # False = statevector (exact), True = shot-based sampling
+    shots_list = [10000000]
+    fast = True             # Use lazy (statevector) upload for speed
+    denoise = True          # Apply denoising circuit
 
-
-    bin_of_n = 2*(n**2)
-    tests = 10
+    verbose_plots = True
+    run_comparison = True
+    
+    # Testing mode
     do_tests = False
-    shots = [10000000]
-    run_psnr = []
-    run_mse = []
-    rows = []
-
-    denoise = False
-    use_shots = False
-    dd_mode = True
-
     if do_tests:
-        for j in range(2, tests):
-            shots.append(bin_of_n * j)
+        bin_of_n = 2 * (n ** 2)
+        for j in range(2, 10):
+            shots_list.append(bin_of_n * j)
 
-    for i in shots:
-        #print(f"Image size: {n}x{n}\nBins: {bin_of_n}\nCurrent Shots: {i}\nShots per Bin: {i/bin_of_n}")
-        gt_img, rec_img = main(i,n,qudit_d,denoise,use_shots,qiskit_mode, dd_mode)
-        #gt_img, rec_img = main_state_vector(n,qudit_d,denoise=True)
-        #main(i, n)
+    for shot_count in shots_list:
+        # Reset run directory for new runs
+        plots.reset_run_dir()
+        
+        gt_img, rec_img, run_dir = main(
+            shots=shot_count,
+            n=n,
+            d=d,
+            denoise=denoise,
 
+            use_shots=use_shots,
+            backend=backend,
+            fast=fast,
+            verbose_plots=verbose_plots,
+            run_comparison=run_comparison
+        )
+        
+        # These are already saved in the run directory
         plots.plot_mse_map(gt_img, rec_img)
         plots.plot_psnr_map(gt_img, rec_img)
+        
+        print(f"Run complete. Output saved to: {run_dir}")
+
 
 #         i_mse = plots.compute_mse(gt_img, rec_img)
 #         i_psnr = plots.compute_psnr(gt_img, rec_img)
@@ -168,7 +301,7 @@ if __name__ == "__main__":
 #         run_psnr.append(i_psnr)
 
 #         rows.append({
-#             "timestamp": datetime.now().isoformat(timespec="seconds"),
+#             "timestamp": datetime.now().isoformat(timespec="seconds"), 
 #             "n": n,
 #             "bins": bin_of_n,
 #             "shots": i,
