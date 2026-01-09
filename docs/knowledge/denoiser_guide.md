@@ -1,90 +1,134 @@
 # MHRQI Denoiser Guide
 
-**What the quantum denoiser actually does.**
+**What the denoiser actually does - honest assessment.**
 
 ---
 
-## Overview
+## Current Implementation Status
 
-The MHRQI denoiser applies a **partial Grover diffusion operator** to position qubits at each level of the hierarchy. This creates controlled mixing between neighboring pixels based on their hierarchical relationship.
+The MHRQI denoiser is **hybrid quantum-classical**:
+- **Quantum part:** Hierarchical position diffusion creates probability distribution
+- **Classical part:** Sibling-based smoothing uses this distribution for edge detection
 
-**Simple explanation:** Pixels are gently blended with their "siblings" (neighbors in the hierarchy) from coarse to fine levels.
+**This is not pure quantum denoising** - it's quantum-assisted edge-preserving image reconstruction.
 
 ---
 
-## Current Implementation
+## Quantum Circuit Component
 
 Function: `DENOISER_qiskit()` in `circuit_qiskit.py`
 
-### Step-by-Step
+### What It Actually Does
 
 1. **For each hierarchy level k** (from L-1 down to 0):
-   - Get position qubits for that level: `qy[k]`, `qx[k]`
-   - Calculate mixing strength based on level (finer = stronger)
-   
-2. **Apply partial Grover diffusion**:
+   - Apply **partial Grover diffusion** to position qubits
+   - This modifies the measurement probability distribution
+   - Does NOT directly change intensity values (they're in computational basis)
+
+2. **Grover diffusion operator:**
    ```
-   H(qy), H(qx)          # Create superposition
+   H(qy), H(qx)          # Create superposition over 4 siblings
    X(qy), X(qx)          # Flip bits
-   CP(angle, qy, qx)     # Controlled phase
+   CP(angle, qy, qx)     # Controlled phase (partial reflection)
    X(qy), X(qx)          # Unflip  
    H(qy), H(qx)          # Return from superposition
    ```
 
-3. **Bias qubit marking** (optional):
-   - Mark high-intensity pixels with rotation on bias qubit
-   - Used during reconstruction to weight contributions
+3. **Level-dependent strength:**
+   - Fine levels: stronger phase rotation (more mixing)
+   - Coarse levels: weaker phase rotation (preserve structure)
+
+### What This Achieves (Quantum)
+
+- ✓ Creates hierarchical entanglement in position qubits
+- ✓ Modifies measurement probability distribution
+- ✓ Pixels in flat regions get higher measurement probability
+- ✓ Pixels on edges get lower measurement probability
+
+### What This Does NOT Do (Not Quantum)
+
+- ✗ Intensity values are NOT modified quantum-mechanically
+- ✗ No quantum averaging of intensity values
+- ✗ No quantum arithmetic or value propagation
+- ✗ Basis-encoded data (|intensity⟩) unchanged by position operations
+
+**Reality:** Grover diffusion on position creates an edge indicator (measurement probability), not actual denoising.
 
 ---
 
-## What This Actually Achieves
-
-### Grover Diffusion Operator
-
-The sequence `H-X-CP-X-H` is a **partial Grover reflection**:
-- Reflects quantum amplitudes toward their mean
-- `angle = 0` → no mixing
-- `angle = π` → full Grover (complete reflection)
-
-We use partial mixing (angle < π) to gently smooth without over-diffusing.
-
-### Level-Dependent Strength
-
-```python
-level_weight = (k + 1) / num_levels  # 0.17 to 1.0 for 6 levels
-angle = diffusion_strength * level_weight
-```
-
-- **Fine levels** (k=L-1, k=L-2): Strong mixing → noise reduction
-- **Coarse levels** (k=0, k=1): Gentle mixing → preserve structure
-
-### What It Does to Pixels
-
-At each level k, the Hadamard creates a superposition that mixes:
-- Current pixel
-- Its 3 siblings at that level (4-way split in quad-tree)
-
-The CP gate applies phase rotation proportional to the mixing strength, which after measurement has the effect of statistically pulling pixel values toward their local mean.
-
----
-
-## Edge Preservation (Classical Post-Processing)
+## Classical Reconstruction Component
 
 **Location:** `mhrqi_bins_to_image()` in `utils.py`
 
-After quantum measurement, we reconstruct the image with edge-aware classical smoothing:
+This is where **actual smoothing happens** - classically, after measurement.
 
-1. **Extract edge map** from measurement probability:
-   - High probability → flat region → smooth more
-   - Low probability → edge → preserve
+### Step-by-Step
 
-2. **Sibling-based smoothing**:
-   - For flat pixels: average with siblings
-   - For edge pixels: keep original value
+1. **Measure quantum circuit** → get probability distribution over pixels
 
-3. **Adaptive strength**:
-   - Depends on local flatness
-   - Non-linear (only very flat regions get strong smoothing)
+2. **Extract edge map** from measurement probability:
+   ```python
+   edge_weight = min(measured_prob / uniform_prob, 1.0)
+   
+   if edge_weight < 0.85:
+       # Low probability = edge → preserve
+   else:
+       # High probability = flat → smooth
+   ```
+
+3. **Sibling-based smoothing:**
+   ```python
+   if pixel is flat and siblings are flat:
+       smooth_strength = edge_weight * flatness^3
+       new_value = (1-smooth_strength)*original + smooth_strength*sibling_avg
+   else:
+       new_value = original  # preserve edges
+   ```
+
+### What This Achieves (Classical)
+
+- ✓ Actual intensity averaging (classical computation)
+- ✓ Edge preservation (thresholding on probability)
+- ✓ Adaptive smoothing strength
+- ✓ Hierarchical sibling structure (classical grouping)
+
+---
+
+## Honest Assessment: Where's The Quantum?
+
+### Quantum Contributions
+
+1. **Hierarchical probability distribution** - comes from quantum circuit structure
+2. **Natural multi-scale encoding** - position qubits organized by level
+3. **Edge indicator via interference** - measurement probability reflects local structure
+
+### Classical Contributions
+
+1. **Actual smoothing** - averaging intensity values
+2. **Edge detection** - thresholding on probability
+3. **Sibling identification** - grouping pixels classically
+4. **Adaptive strength** - non-linear weighting formula
+
+### The Truth
+
+**This is a classical hierarchical filter guided by a quantum probability distribution.**
+
+The quantum circuit doesn't denoise - it creates an edge map. The classical post-processing does the denoising using that edge map.
+
+---
+
+## Why This Approach?
+
+**Fundamental limitation:** Intensity values are basis-encoded (|I⟩ = |10110101⟩).
+
+Standard quantum operations on position qubits **cannot modify** computational basis states in other registers.
+
+**To truly denoise quantum-mechanically would require:**
+- Quantum arithmetic (adders, comparators) → expensive
+- Quantum SWAP operations with neighbors → complex addressing
+- Quantum averaging circuits → many ancilla qubits
+
+**We chose:** Hybrid approach that's feasible on current hardware.
 
 ---
 
@@ -92,47 +136,52 @@ After quantum measurement, we reconstruct the image with edge-aware classical sm
 
 | Parameter | Type | Effect |
 |-----------|------|--------|
-| `strength` | float (0-2) | Overall diffusion intensity |
-| `bias` | qubit | Optional bias qubit for weighting |
-| `method` | `'bias'` or `'uniform'` | Bias marking vs uniform mixing |
+| `strength` | float (0-2) | Grover diffusion intensity |
+| `bias` | qubit | Optional bias qubit (currently unused effectively) |
+| `method` | `'bias'` or `'uniform'` | Bias marking vs uniform (both end up classical) |
 
-**Typical value:** `strength = 1.65` for good balance
-
----
-
-## What This Is NOT
-
-❌ **NOT** Discrete-Time Quantum Walks (DTQW) - that code was removed  
-❌ **NOT** edge-detecting within the quantum circuit - edges detected classically  
-❌ **NOT** gradient-based anisotropic diffusion - no gradient computation in circuit  
-❌ **NOT** block-matching or NL-means adaptation  
+**Typical value:** `strength = 1.65`
 
 ---
 
 ## Limitations
 
-1. **No quantum edge detection**: Edge preservation happens classically after measurement
-2. **Shot noise**: Shot-based mode introduces sampling variance
-3. **Statevector only**: Full denoising requires statevector simulation (expensive)
-4. **Fixed hierarchy**: Cannot adapt structure to image content
+1. **Not pure quantum** - smoothing happens classically
+2. **Basis encoding constraint** - can't quantum-average computational basis values
+3. **Measurement required** - must collapse state to get probabilities
+4. **Edge detection classical** - probability threshold is classical logic
+5. **No quantum speedup** - classical post-processing is bottleneck
 
 ---
 
-## Code Reference
+## Future Directions
 
-**Main denoiser:**
-- `circuit_qiskit.py:481-585` - `DENOISER_qiskit()`
+To make this truly quantum would require:
+- Quantum arithmetic circuits for averaging
+- Different encoding (amplitude-based instead of basis)
+- Or accept hybrid nature and focus on quality/application
+
+---
+
+## Code References
+
+**Quantum circuit:**
+- `circuit_qiskit.py:335-585` - `DENOISER_qiskit()`
+- `circuit_qiskit.py:421-579` - Grover diffusion loop
 
 **Classical reconstruction:**
 - `utils.py:157-329` - `mhrqi_bins_to_image()`
-
-**Fallback:**
-- `circuit_qiskit.py:661-679` - `_uniform_averaging()` (when bias unavailable)
+- `utils.py:209-222` - `get_siblings()`
 
 ---
 
 ## Summary
 
-The denoiser is a **hierarchical partial Grover diffusion** that mixes pixel values with their siblings at multiple scales. Edge preservation is achieved through classical post-processing using measurement probability as an edge indicator.
+The MHRQI denoiser is an **honest hybrid approach**:
+- Uses quantum circuit to create hierarchical edge-aware probability distribution
+- Uses classical post-processing to perform actual smoothing
+- Makes no claims of pure quantum denoising
+- Focuses on practical image quality using available quantum resources
 
-It's simple, effective, and based on well-understood quantum operators.
+**It works, but it's not magic - it's quantum-assisted classical filtering.**
+

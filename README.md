@@ -78,13 +78,21 @@ For an N×N image where N = 2^L:
 - Pixel (0,0) → qubits: `|0000⟩` (position) + `|intensity⟩`
 - Pixel (3,3) → qubits: `|1111⟩` (position) + `|intensity⟩`
 
-### 2. Quantum Denoising
+### 2. Quantum-Assisted Denoising
 
-Applies partial Grover diffusion at each hierarchy level:
-- **Coarse levels** (k=0,1): Gentle blending across large blocks
-- **Fine levels** (k=L-1): Stronger smoothing of noise
+**Hybrid approach** combining quantum and classical processing:
 
-Classical post-processing uses measurement probability to preserve edges.
+**Quantum component:**
+- Applies partial Grover diffusion at each hierarchy level
+- Creates probability distribution indicating flat vs edge regions
+- Hierarchical structure naturally encoded in circuit
+
+**Classical component:**
+- Uses probability distribution for edge detection
+- Performs sibling-based smoothing in flat regions
+- Preserves edges via adaptive weighting
+
+**Note:** This is quantum-assisted classical filtering, not pure quantum denoising. Intensity values (basis-encoded) are smoothed classically using quantum-derived edge information.
 
 ### 3. Measurement and Reconstruction
 
