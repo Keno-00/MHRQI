@@ -263,12 +263,18 @@ if __name__ == "__main__":
     verbose_plots = True
     run_comparison = True
     
+
     # Testing mode
     do_tests = False
     if do_tests:
         bin_of_n = 2 * (n ** 2)
         for j in range(2, 10):
             shots_list.append(bin_of_n * j)
+
+    # Collect trend data if doing multiple runs
+    run_mse = []
+    run_psnr = []
+    shots_used = []
 
     for shot_count in shots_list:
         # Reset run directory for new runs
@@ -291,28 +297,17 @@ if __name__ == "__main__":
         plots.plot_mse_map(gt_img, rec_img)
         plots.plot_psnr_map(gt_img, rec_img)
         
+        # Collect trend data for multi-shot runs
+        if len(shots_list) > 1:
+            i_mse = plots.compute_mse(gt_img, rec_img)
+            i_psnr = plots.compute_psnr(gt_img, rec_img)
+            run_mse.append(i_mse)
+            run_psnr.append(i_psnr)
+            shots_used.append(shot_count)
+        
         print(f"Run complete. Output saved to: {run_dir}")
 
-
-#         i_mse = plots.compute_mse(gt_img, rec_img)
-#         i_psnr = plots.compute_psnr(gt_img, rec_img)
-
-#         run_mse.append(i_mse)
-#         run_psnr.append(i_psnr)
-
-#         rows.append({
-#             "timestamp": datetime.now().isoformat(timespec="seconds"), 
-#             "n": n,
-#             "bins": bin_of_n,
-#             "shots": i,
-#             "shots_per_bin": i / bin_of_n,
-#             "mse": float(i_mse),
-#             "psnr": float(i_psnr),
-#         })
-
-#         print(f'===================\nCurrently running: {i} shots \nCurrent MSE: {i_mse}\nCurrent PSNR: {i_psnr}\n===================\n')
-#     save_rows_to_csv(rows)
-
-#     plots.plot_shots_vs_mse(shots, run_mse)
-#     plots.plot_shots_vs_psnr(shots, run_psnr)
-# #
+    # Plot trends if multiple shot counts were tested
+    if len(shots_list) > 1 and verbose_plots:
+        plots.plot_shots_vs_mse(shots_used, run_mse)
+        plots.plot_shots_vs_psnr(shots_used, run_psnr)
