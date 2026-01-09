@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MHRQI // DENOISING</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fonts-cmu@1.0.0/serif/index.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="core.js" defer></script>
+</head>
+
+<body>
+    <header id="mainHeader">
+        <div class="container-inner">
+            <div style="border-bottom: 4px solid var(--ink-color); padding-bottom: 20px; margin-bottom: 20px;">
+                <h1 style="border:none; margin:0; padding:0; font-size: 3rem; line-height: 1;">MHRQI</h1>
+                <div class="subtitle-row"
+                    style="font-family: var(--font-ui); font-size: 1rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <span>Magnitude-Hierarchical Representation of Quantum Images</span>
+                    <span style="font-size: 0.7rem; text-align: right;">SYS.VER: 2.0.4</span>
+                </div>
+            </div>
+            <nav class="main-nav">
+                <a href="index.html">Home</a>
+                <a href="preprocessing.html">Preprocessing</a>
+                <a href="encoder.html">Encoder</a>
+                <a href="denoiser.html">Denoising</a>
+                <a href="simulation.html">Simulation</a>
+                <a href="benchmark.html">Benchmark</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+
+        <section id="denoiser">
+            <h2 class="ui-text">04 // Denoising System: Seam Theory</h2>
+            <div class="wireframe-box">
+                <div class="mermaid">
+                    graph LR
+                    In["Encoded State"] --> Mark["Phase Marking"]
+                    Mark --> Diff["Partial Grover Reflection"]
+                    subgraph Smoothing ["Hierarchical Smoothing"]
+                    Diff --> L0["Global (Coarse)"]
+                    Diff --> Lk["Local (Fine)"]
+                    end
+                    Lk --> Out["Denoised State"]
+                    L0 --> Out
+                </div>
+                <p>
+                    The denoiser applies <strong>Unitary Diffusion</strong> through partial Grover reflections.
+                    <strong>Seam Theory</strong> enables cross-boundary information flow by coupling sibling blocks,
+                    smoothing flat regions while respecting phase-encoded edges.
+                </p>
+                <div id="denoiseExplorer" class="wireframe-box"
+                    style="background:#f9f9f9; text-align:center; padding: 20px;">
+                    <p style="font-family:var(--font-ui); font-size:0.8rem;">[HIERARCHICAL DIFFUSION SIMULATOR]</p>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+
+</html>

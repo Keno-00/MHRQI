@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MHRQI // PREPROCESSING</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fonts-cmu@1.0.0/serif/index.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="core.js" defer></script>
+</head>
+
+<body>
+    <header id="mainHeader">
+        <div class="container-inner">
+            <div style="border-bottom: 1px solid var(--ink-color); padding-bottom: 10px; margin-bottom: 20px;">
+                <h1 style="border:none; margin:0; padding:0; font-size: 3rem; line-height: 1;">MHRQI</h1>
+                <div class="subtitle-row"
+                    style="font-family: var(--font-ui); font-size: 1rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <span>Magnitude-Hierarchical Representation of Quantum Images</span>
+                    <span style="font-size: 0.7rem; text-align: right;">SYS.VER: 2.0.4</span>
+                </div>
+            </div>
+            <nav class="main-nav">
+                <a href="index.html">Home</a>
+                <a href="preprocessing.html">Preprocessing</a>
+                <a href="encoder.html">Encoder</a>
+                <a href="denoiser.html">Denoising</a>
+                <a href="simulation.html">Simulation</a>
+                <a href="benchmark.html">Benchmark</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+
+        <section id="workflow-summary">
+            <h2 class="ui-text">01 // Hierarchical Decomposition Architecture</h2>
+            <div class="wireframe-box">
+                <div class="mermaid">
+                    graph LR
+                    Img["Input Image (Normalized)"] --> Bit["Intensity Quantization (Basis)"]
+                    Bit --> HCV["Coordinate Remapping (HCV)"]
+                    HCV --> QTree["Magnitude-Hierarchical Tree"]
+                    QTree --> Circuit["Phase-Gradient Gate Logic"]
+                </div>
+                <p style="margin-top:20px;">
+                    The preprocessing stage transforms classical pixel coordinates into a <strong>Magnitude-Hierarchical
+                        Representation</strong>.
+                    Unlike standard quantum images (FRQI/NEQR) that use global position registers, MHRQI decomposes the
+                    image into
+                    nested quadrants (or qudits), where each level of the hierarchy represents a specific scale of
+                    spatial information.
+                </p>
+            </div>
+        </section>
+
+        <section id="preprocessing">
+            <h2 class="ui-text">02 // Preprocessing: The HCV Vector</h2>
+            <div class="wireframe-box">
+                <p>
+                    The <strong>Hierarchical Coordinate Vector (HCV)</strong> is the core data structure of MHRQI.
+                    It maps a pixel's $(x,y)$ position to a sequence of local quadrant indices $Q_k$ across $L$ levels.
+                    This allows for <strong>scale-agnostic operations</strong> and efficient denoising through local
+                    diffusion.
+                </p>
+
+                <div class="explorer-grid" style="margin-top: 30px;">
+                    <div class="vis-container">
+                        <div>
+                            <div class="ui-text" style="font-size:0.7rem; margin-bottom:5px;">CLASSICAL.GRID [N x N]
+                            </div>
+                            <div class="grid-wrapper" id="pixelGrid" style="position:relative;">
+                                <div id="gridOverlay" class="grid-overlay"></div>
+                            </div>
+                            <p style="font-size:0.7rem; color:var(--dim-color); text-align:center; margin-top:5px;">
+                                [HOLD PIXEL TO EXPLODE QUANTUM TREE]
+                            </p>
+                        </div>
+                        <div>
+                            <div class="ui-text" style="font-size:0.7rem; margin-bottom:5px;">QUANTUM.TREE [ISO-STACK]
+                            </div>
+                            <div class="level-viewport" id="levelViewport">
+                                <div class="level-indicator" id="levelIndicator">LEVEL 0</div>
+                                <div class="iso-container mode-flat" id="isoContainer"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-panel">
+                        <div class="ui-text"
+                            style="border-bottom:1px solid #000; padding-bottom:5px; margin-bottom:15px; font-size:0.8rem;">
+                            HCV ANALYSIS</div>
+                        <div id="defaultMsg" style="color:#666; font-style:italic; font-size:0.8rem;">Select a pixel to
+                            trace its hierarchical path.</div>
+                        <div id="mathContent" style="display:none;"></div>
+
+                        <div class="controls" style="margin-top:20px; flex-wrap:wrap;">
+                            <div class="input-group">
+                                <label>SIZE (N)</label>
+                                <input type="number" id="inputN" value="8" min="2" max="32">
+                            </div>
+                            <div class="input-group">
+                                <label>SUB (d)</label>
+                                <input type="number" id="inputD" value="2" min="2" max="8">
+                            </div>
+                            <button id="regenBtn" style="font-size:0.7rem; padding: 5px 10px;">REGEN</button>
+                        </div>
+                        <span id="errorMsg" style="color:red; font-size:0.7rem;"></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+
+</html>

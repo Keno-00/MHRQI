@@ -1,0 +1,550 @@
+:root {
+    --bg-color: #ffffff;
+    --ink-color: #000000;
+    --dim-color: #666666;
+    --border-width: 1px;
+    --font-ui: 'Inter', sans-serif;
+    --font-text: 'CMU Serif', serif;
+}
+
+/* RESET & BASE */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--ink-color);
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-text);
+    line-height: 1.6;
+}
+
+/* PRE-LOADER / INTRO ANIMATION */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* LAYOUT GRID */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 60px;
+}
+
+/* GENERIC CENTERING CONTAINER */
+.container-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    width: 100%;
+}
+
+/* TYPOGRAPHY - WIREFRAME STYLE */
+h1,
+h2,
+h3,
+h4,
+.ui-text {
+    font-family: var(--font-ui);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    margin: 0;
+}
+
+h1 {
+    font-size: 2.5rem;
+    border-bottom: 2px solid var(--ink-color);
+    padding-bottom: 10px;
+    margin-bottom: 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+h1 span.subtitle {
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: var(--dim-color);
+}
+
+h2 {
+    font-size: 1.2rem;
+    border-bottom: 1px solid var(--ink-color);
+    margin-bottom: 20px;
+    padding-bottom: 5px;
+}
+
+p {
+    margin-bottom: 1.5rem;
+    font-size: 1.1rem;
+    text-align: justify;
+}
+
+/* NAVIGATION */
+nav.main-nav {
+    border-bottom: 1px solid var(--ink-color);
+    padding: 10px 0;
+    margin-bottom: 40px;
+    display: flex;
+    gap: 20px;
+    font-family: var(--font-ui);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    flex-wrap: wrap;
+}
+
+nav.main-nav a {
+    color: var(--ink-color);
+    text-decoration: none;
+    padding: 5px 10px;
+    border: 1px solid transparent;
+}
+
+nav.main-nav a:hover {
+    border-color: var(--ink-color);
+}
+
+nav.main-nav a.active {
+    background: var(--ink-color);
+    color: #fff;
+}
+
+/* UI COMPONENTS - WIREFRAME */
+.wireframe-box {
+    border: 1px solid var(--ink-color);
+    padding: 20px;
+    background: #fff;
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.wireframe-box::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    width: 6px;
+    height: 6px;
+    background: var(--ink-color);
+}
+
+.wireframe-box::before {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    right: -3px;
+    width: 6px;
+    height: 6px;
+    background: var(--ink-color);
+}
+
+/* INTERACTIVE EXPLORER SECTION */
+.explorer-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+}
+
+@media (max-width: 800px) {
+    .explorer-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* CONTROLS */
+.controls {
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+    margin-bottom: 30px;
+    font-family: var(--font-ui);
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.input-group label {
+    font-size: 0.7rem;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+input {
+    border: 1px solid var(--ink-color);
+    padding: 8px;
+    font-family: var(--font-ui);
+    width: 80px;
+    text-align: center;
+}
+
+button {
+    background: var(--ink-color);
+    color: #fff;
+    border: 1px solid var(--ink-color);
+    padding: 9px 20px;
+    font-family: var(--font-ui);
+    text-transform: uppercase;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+button:hover {
+    background: #fff;
+    color: var(--ink-color);
+}
+
+/* VISUALIZATION */
+.vis-container {
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+}
+
+/* GRID VIS */
+.grid-wrapper {
+    display: grid;
+    border: 1px solid var(--ink-color);
+    width: 100%;
+    aspect-ratio: 1/1;
+    max-width: 400px;
+    margin: 0 auto;
+    background-image: linear-gradient(#eee 1px, transparent 1px),
+        linear-gradient(90deg, #eee 1px, transparent 1px);
+    background-size: 10px 10px;
+}
+
+.pixel {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    font-family: var(--font-ui);
+    cursor: crosshair;
+    transition: background 0.1s;
+}
+
+.pixel:hover {
+    background: #eee;
+}
+
+.pixel.active {
+    background: var(--ink-color);
+    color: #fff;
+}
+
+/* TREE VIS */
+.level-viewport {
+    height: 500px;
+    /* More space */
+    border: 1px solid var(--ink-color);
+    position: relative;
+    background: #fafafa;
+    overflow: hidden;
+    perspective: 2000px;
+    /* Stronger perspective */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.iso-container {
+    width: 300px;
+    height: 300px;
+    position: relative;
+    transform-style: preserve-3d;
+    transform-origin: center center;
+    transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.iso-container.mode-flat {
+    transform: rotateX(0deg) rotateZ(0deg);
+}
+
+.iso-container.mode-iso {
+    transform: rotateX(60deg) rotateZ(45deg) translateZ(-50px);
+}
+
+.iso-layer {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    display: grid;
+    transition: transform 0.5s ease, opacity 0.5s ease;
+    transform-style: preserve-3d;
+}
+
+.iso-layer.active-layer {
+    background: rgba(255, 255, 255, 0.1);
+    z-index: 10;
+}
+
+/* In FLAT mode, stack them but keep index active */
+.mode-flat .iso-layer {
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%) translateZ(0) !important;
+}
+
+.mode-flat .iso-layer.active-layer {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* In ISO mode, apply the stack */
+.mode-iso .iso-layer {
+    opacity: 0.6;
+    pointer-events: auto;
+}
+
+.mode-iso .iso-layer.active-layer {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.layer-label {
+    position: absolute;
+    top: -20px;
+    left: 0;
+    font-family: var(--font-ui);
+    font-size: 0.7rem;
+    color: var(--ink-color);
+    background: #fff;
+    padding: 2px 6px;
+    border: 1px solid #000;
+    pointer-events: none;
+    transform: rotateX(-60deg) rotateY(0deg);
+    /* Adjust for iso angle */
+}
+
+.level-indicator {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-family: var(--font-ui);
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: #fff;
+    border: 2px solid var(--ink-color);
+    padding: 6px 12px;
+    pointer-events: none;
+    z-index: 100;
+}
+
+/* GRID OVERLAY */
+.grid-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.grid-line {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.2);
+    z-index: 5;
+}
+
+/* CUBE FACES (Connecting Levels) */
+.cube-face {
+    position: absolute;
+    background: var(--ink-color);
+    opacity: 0.3;
+    pointer-events: none;
+    border: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+/* Vertical connections (Columns) */
+.face-front {
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    transform-origin: bottom;
+    transform: rotateX(-90deg);
+}
+
+.face-back {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    transform-origin: top;
+    transform: rotateX(90deg);
+}
+
+.face-right {
+    top: 0;
+    right: 0;
+    width: 60px;
+    height: 100%;
+    transform-origin: right;
+    transform: rotateY(-90deg);
+}
+
+.face-left {
+    top: 0;
+    left: 0;
+    width: 60px;
+    height: 100%;
+    transform-origin: left;
+    transform: rotateY(90deg);
+}
+
+.node {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.8);
+    position: relative;
+    transform-style: preserve-3d;
+}
+
+.node:hover {
+    background: #eee;
+}
+
+.node.active {
+    background: var(--ink-color);
+    border-color: var(--ink-color);
+}
+
+/* INFO PANEL */
+.equation-box {
+    border: 1px dashed var(--dim-color);
+    padding: 15px;
+    margin: 20px 0;
+    background: #fafafa;
+    overflow-x: auto;
+    font-family: var(--font-ui);
+}
+
+/* SECTIONS */
+section {
+    padding: 80px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.mermaid {
+    background: #fff;
+    border: 3px solid #000;
+    /* Thicker border as requested */
+    padding: 30px;
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+    width: 100%;
+}
+
+.mermaid rect {
+    stroke-width: 3px !important;
+    /* Thicker box outlines */
+}
+
+/* STICKY/SHRINKING HEADER */
+header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: #fff;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 15px 0;
+    /* Reduced default padding */
+    border-bottom: 4px solid var(--ink-color);
+    width: 100%;
+}
+
+header.shrunk {
+    padding: 5px 0;
+}
+
+header.shrunk h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0px;
+}
+
+header.shrunk .subtitle-row {
+    display: none !important;
+}
+
+header.shrunk nav.main-nav {
+    margin-bottom: 0;
+    padding: 5px 0;
+}
+
+/* HERO SECTION */
+.hero {
+    min-height: 50vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-bottom: 4px solid var(--ink-color);
+    margin-bottom: 60px;
+    background: #fff;
+    width: 100%;
+}
+
+.hero .container-inner {
+    text-align: center;
+}
+
+.hero h2 {
+    font-size: 4.5rem;
+    border: none;
+    margin-bottom: 30px;
+    line-height: 1;
+}
+
+.hero p {
+    font-size: 1.4rem;
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+/* STATEMENT OF PROBLEM */
+.problem-statement {
+    background: #000;
+    color: #fff;
+    padding: 80px 60px;
+    margin: 60px 0;
+    font-style: italic;
+    border: 1px solid #000;
+}
+
+.problem-statement h3 {
+    color: #fff;
+    border-bottom: 1px solid #fff;
+    margin-bottom: 30px;
+    font-size: 1.5rem;
+}
+
+.problem-statement p {
+    font-size: 1.3rem;
+    line-height: 1.8;
+}

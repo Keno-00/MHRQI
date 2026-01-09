@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MHRQI Hierarchy Explorer</title>
+
+    <!-- Load Computer Modern Serif for LaTeX-like text -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fonts-cmu@1.0.0/serif/index.css">
+
+    <!-- MathJax Configuration -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: {
+                fontCache: 'global'
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        :root {
+            /* Design Philosophy: Strict B&W / Grayscale */
+            --bg-color: #ffffff;
+            --text-main: #111111;
+            --text-sub: #555555;
+            --border-strong: #000000;
+            --border-light: #cccccc;
+            --highlight-bg: #f4f4f4;
+            --active-bg: #000000;
+            --active-text: #ffffff;
+            --path-highlight: #888888;
+            --child-outline: #000000;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            /* LaTeX-like Typography */
+            font-family: 'CMU Serif', 'Times New Roman', serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 60px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 1.8;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* --- TYPOGRAPHY & HEADER --- */
+        h1 {
+            margin: 0 0 40px 0;
+            font-weight: bold;
+            font-size: 2.2rem;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid var(--border-strong);
+            padding-bottom: 15px;
+            width: 100%;
+        }
+
+        h2 {
+            font-size: 1.4rem;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border-strong);
+            width: 100%;
+            padding-bottom: 5px;
+            margin-top: 60px;
+            margin-bottom: 30px;
+            letter-spacing: 0.5px;
+        }
+
+        h3 {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-style: italic;
+        }
+
+        p {
+            margin-bottom: 20px;
+            text-align: justify;
+            font-size: 1.05rem;
+        }
+
+        /* --- NARRATIVE SECTION --- */
+        .narrative-container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .equation-block {
+            margin: 25px 0;
+            overflow-x: auto;
+            text-align: center;
+            padding: 10px;
+            background: #fdfdfd;
+            border: 1px dashed #eee;
+        }
+
+        /* --- INTERACTIVE EXPLORER STYLES --- */
+
+        /* Usage Guide */
+        .usage-guide {
+            background-color: #fafafa;
+            border: 1px solid var(--border-light);
+            padding: 20px;
+            margin-bottom: 30px;
+            width: 100%;
+            font-size: 0.95rem;
+        }
+
+        .usage-guide h3 {
+            margin-top: 0;
+            font-size: 1rem;
+            text-transform: uppercase;
+            border-bottom: 1px dashed var(--border-light);
+            padding-bottom: 10px;
+        }
+
+        .usage-guide ul {
+            padding-left: 20px;
+            margin: 0;
+        }
+
+        .usage-guide li {
+            margin-bottom: 8px;
+        }
+
+        /* Controls */
+        .controls-container {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 40px;
+            padding: 25px;
+            border: 1px solid var(--border-strong);
+            align-items: flex-end;
+            width: 100%;
+            justify-content: center;
+            background: #fff;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-group label {
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .input-group input {
+            padding: 10px;
+            border: 1px solid var(--border-strong);
+            font-family: inherit;
+            font-size: 1rem;
+            width: 80px;
+            text-align: center;
+            border-radius: 0;
+        }
+
+        button {
+            padding: 11px 30px;
+            background: var(--active-bg);
+            color: var(--active-text);
+            border: 1px solid var(--border-strong);
+            font-family: inherit;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            font-size: 0.9rem;
+            border-radius: 0;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #fff;
+            color: #000;
+        }
+
+        .error-msg {
+            color: #000;
+            font-weight: bold;
+            font-style: italic;
+            margin-top: -30px;
+            margin-bottom: 30px;
+            height: 20px;
+            text-align: center;
+            width: 100%;
+        }
+
+        .explorer-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 50px;
+            width: 100%;
+        }
+
+        .vis-column {
+            flex: 1 1 400px;
+            /* Flex-grow, flex-shrink, basis */
+            display: flex;
+            flex-direction: column;
+            gap: 50px;
+        }
+
+        .math-column {
+            flex: 1 1 400px;
+        }
+
+        .subsection-title {
+            width: 100%;
+            text-align: left;
+            font-size: 0.9rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            color: var(--text-sub);
+            border-bottom: 1px solid var(--border-light);
+            padding-bottom: 5px;
+        }
+
+        /* GRID */
+        .grid-wrapper {
+            display: grid;
+            gap: 1px;
+            background-color: var(--border-light);
+            border: 1px solid var(--border-strong);
+            margin: 0 auto;
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 1 / 1;
+        }
+
+        .pixel {
+            background-color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: var(--text-sub);
+            cursor: pointer;
+            transition: background 0.1s;
+            overflow: hidden;
+        }
+
+        .pixel:hover {
+            background-color: var(--highlight-bg);
+        }
+
+        .pixel.active {
+            background-color: var(--active-bg) !important;
+            color: var(--active-text);
+        }
+
+        .pixel.path {
+            background-color: var(--path-highlight);
+            color: #fff;
+        }
+
+        /* TREE */
+        .tree-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            overflow-x: auto;
+            padding: 20px 0;
+            border: 1px solid var(--border-light);
+            background: #fafafa;
+        }
+
+        .tree-level {
+            display: grid;
+            /* Changed from Flex to Grid for spatial accuracy */
+            justify-content: center;
+            gap: 2px;
+            margin-bottom: 15px;
+            width: fit-content;
+            border: 1px dashed #ddd;
+            /* Visual boundary for the level */
+            padding: 2px;
+        }
+
+        .level-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            color: var(--text-sub);
+            font-weight: bold;
+        }
+
+        .node {
+            background: #fff;
+            border: 1px solid #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            z-index: 2;
+            min-width: 20px;
+            height: 20px;
+            padding: 0;
+            border-radius: 0;
+        }
+
+        /* Dynamic scale classes */
+        .node.large {
+            width: 40px;
+            height: 40px;
+            font-size: 0.9rem;
+        }
+
+        .node.medium {
+            width: 30px;
+            height: 30px;
+            font-size: 0.7rem;
+        }
+
+        .node.small {
+            width: 15px;
+            height: 15px;
+            font-size: 0;
+            border-width: 1px;
+            border-color: #ddd;
+        }
+
+        .node.tiny {
+            width: 8px;
+            height: 8px;
+            font-size: 0;
+            border: none;
+            background: #ddd;
+        }
+
+        .node:hover {
+            background-color: var(--highlight-bg);
+            border-color: #000;
+        }
+
+        .node.active {
+            background: var(--active-bg);
+            color: var(--active-text);
+            border-color: var(--active-bg);
+        }
+
+        .node.path {
+            background: var(--path-highlight);
+            border-color: var(--path-highlight);
+            color: #fff;
+        }
+
+        /* Outline style for children */
+        .node.child-outline {
+            border: 2px dashed var(--child-outline);
+            background-color: transparent;
+            z-index: 3;
+        }
+
+        .connector {
+            width: 1px;
+            height: 15px;
+            background: var(--border-light);
+            margin-bottom: 5px;
+        }
+
+        /* DYNAMIC MATH PANEL - NARRATIVE FLOW */
+        .interactive-math-panel {
+            background: #fff;
+            border: 2px solid var(--border-strong);
+            padding: 25px;
+            position: sticky;
+            top: 20px;
+            height: auto;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .narrative-block {
+            margin-bottom: 25px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+
+        .narrative-block:last-child {
+            border-bottom: none;
+        }
+
+        .narrative-title {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+            display: block;
+            color: #000;
+        }
+
+        .narrative-text {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #222;
+            margin-bottom: 15px;
+        }
+
+        .narrative-eq {
+            background: #f9f9f9;
+            padding: 10px;
+            border-left: 3px solid #000;
+            margin: 10px 0;
+            overflow-x: auto;
+            font-size: 1.1rem;
+        }
+
+        .instruction {
+            text-align: center;
+            font-style: italic;
+            color: var(--text-sub);
+            padding: 60px 20px;
+            border: 1px dashed var(--border-light);
+            background: #fafafa;
+        }
+
+        /* Formatted Math Step */
+        .math-step-box {
+            background: #fff;
+            padding: 15px;
+            border: 1px solid #ccc;
+            margin-bottom: 15px;
+            font-size: 0.95rem;
+        }
+
+        .math-label-small {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            color: #555;
+            display: block;
+            margin-bottom: 5px;
+            margin-top: 10px;
+        }
+
+        .math-label-small:first-child {
+            margin-top: 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <h1>MHRQI Structure Explorer</h1>
+
+    <div class="narrative-container">
+
+        <h2>Mathematical Formulation</h2>
+
+        <p>
+            Traditional quantum image representations typically encode images by mapping pixel coordinates directly to
+            quantum basis states in a linear fashion. While this effectively stores the image data, it treats the image
+            as a flat list of pixels, discarding the inherent spatial correlations between neighboring regions. In
+            medical imaging contexts, such as the processing of OCT B-scans for diabetic retinopathy, this loss of
+            spatial locality is critical; noise reduction algorithms must be able to distinguish between broad
+            anatomical layers and fine pathological details.
+        </p>
+
+        <p>
+            To address this, the <strong>Magnitude-Hierarchical Representation of Quantum Images (MHRQI)</strong>
+            introduces a structured encoding scheme that organizes pixels not merely by linear address, but by
+            hierarchical region. This approach mimics a <strong>multi-resolution analysis</strong> or a <strong>quadtree
+                decomposition</strong>, where the image is recursively subdivided. By using qudits to store these
+            hierarchical addresses, the quantum state itself retains the "zooming" logic of the image structure,
+            enabling operations that are structurally aware—smoothing large regions while preserving fine edges.
+        </p>
+
+        <h3>Classical Pre-processing and Normalization</h3>
+
+        <p>
+            The foundation of the algorithm lies in translating the classical, spatially correlated structure of an
+            image into a quantum mechanical state. We begin with a classical image matrix $I$ of size $N \times N$,
+            containing raw intensity values. To map these values onto the probability amplitudes of a qubit, we must
+            first normalize them to the unit interval $[0,1]$ and transform them into rotation angles $\theta$.
+        </p>
+
+        <div class="equation-block">
+            $$u(x,y) = \frac{I(x,y)}{2^b - 1}, \quad \theta_{x,y} = 2 \arcsin(\sqrt{u(x,y)})$$
+        </div>
+
+        <h3>Hierarchical Coordinate Remapping</h3>
+
+        <p>
+            Rather than using a simple binary count to address pixels (e.g., $00, 01, 10, 11$), MHRQI employs a
+            recursive subdivision strategy. We define a subdivision factor $d$ (the dimension of our qudits) and
+            calculate the block size $s_k$ for each level of the hierarchy $k$. This effectively partitions the image
+            into increasingly granular grids.
+        </p>
+
+        <div class="equation-block">
+            $$s_k = \frac{N}{d^k}, \quad k \in [1, \dots, L_{max}]$$
+        </div>
+
+        <p>
+            For any given pixel coordinate $(x,y)$, we can determine its "local address" within each level of this
+            hierarchy. This is calculated using the modulo operator to find the pixel's relative position within its
+            current sub-block. The resulting index $Q_k$ is treated as a pair of coordinates $(Q_k(x), Q_k(y))$ which
+            tells us which sub-quadrant the pixel belongs to at depth $k$.
+        </p>
+
+        <div class="equation-block">
+            $$Q_k(x) = \min\left(\left\lfloor (x \bmod s_{k-1}) \cdot \frac{d}{s_{k-1}} \right\rfloor, d-1\right)$$
+            $$Q_k(y) = \min\left(\left\lfloor (y \bmod s_{k-1}) \cdot \frac{d}{s_{k-1}} \right\rfloor, d-1\right)$$
+        </div>
+
+        <p>
+            By concatenating these index pairs across all levels, we generate a <strong>Hierarchical Coordinate
+                Vector</strong> $H(x,y)$. This vector serves as the complete, multi-scale address of the pixel, tracing
+            a path from the coarsest region of the image down to the specific pixel location.
+        </p>
+
+        <div class="equation-block">
+            $$H(x,y) = (Q_1(x), Q_1(y), Q_2(x), Q_2(y), \dots, Q_{L_{max}}(x), Q_{L_{max}}(y))$$
+        </div>
+
+        <h3>Quantum State Construction</h3>
+
+        <p>
+            With the hierarchical coordinates defined, we construct the quantum state. Unlike classical indexing which
+            accesses elements sequentially, the quantum formulation utilizes <strong>superposition</strong> to represent
+            all hierarchical paths simultaneously. We initialize a register of $2L$ position qudits (arranged as $L$
+            pairs of $x$ and $y$ coordinates) and place them into a uniform superposition.
+        </p>
+
+        <div class="equation-block">
+            $$|\Psi_1\rangle = \frac{1}{\sqrt{d^{2L}}} \sum_{q_1^x=0}^{d-1} \sum_{q_1^y=0}^{d-1} \dots
+            \sum_{q_L^x=0}^{d-1} \sum_{q_L^y=0}^{d-1} |q_1^x\rangle \otimes |q_1^y\rangle \otimes \dots \otimes
+            |q_L^x\rangle \otimes |q_L^y\rangle \otimes |0\rangle_a$$
+        </div>
+
+        <p>
+            Finally, we encode the pixel intensity. We employ a controlled rotation operator $\tilde{\kappa}_{x,y}$
+            which rotates the ancilla qubit by the angle $\theta_{x,y}$ if and only if the position register matches the
+            hierarchical address $H(x,y)$. The result is the final MHRQI state, which entangles the hierarchical
+            structure with the image data:
+        </p>
+
+        <div class="equation-block">
+            $$|\Psi_{MHRQI}\rangle = \frac{1}{d^L} \sum_{x=0}^{N-1} \sum_{y=0}^{N-1} |H(x,y)\rangle \otimes \left(
+            \cos\frac{\theta_{x,y}}{2}|0\rangle + \sin\frac{\theta_{x,y}}{2}|1\rangle \right)$$
+        </div>
+    </div>
+
+    <!-- PART 2: INTERACTIVE TOOL -->
+    <h2>Interactive Hierarchical Explorer</h2>
+
+    <div class="usage-guide">
+        <h3>How to use this tool:</h3>
+        <ul>
+            <li><strong>Configure:</strong> Enter your Image Size ($N$) and Subdivision Factor ($d$) below. The tool
+                will verify if the numbers are compatible.</li>
+            <li><strong>Generate:</strong> Click <strong>REGENERATE SYSTEM</strong> to build the Grid and Tree.</li>
+            <li><strong>Trace Pixels:</strong> Click on any square in the <strong>Grid</strong> (Section 1). The tool
+                will light up the path in the Tree corresponding to that pixel's address.</li>
+            <li><strong>Trace Regions:</strong> Click on any circle in the <strong>Tree</strong> (Section 2). The tool
+                will highlight the entire rectangular region in the Grid that this node governs.</li>
+            <li><strong>Child Outline:</strong> Selecting a Parent Node will also <strong>outline its direct
+                    children</strong> with a dashed border to show subdivision.</li>
+            <li><strong>Learn:</strong> Read the "Dynamic State Analysis" panel on the right, which translates your
+                click into the mathematical narrative described above.</li>
+        </ul>
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="controls-container">
+        <div class="input-group">
+            <label for="inputN">Image Size ($N$)</label>
+            <input type="number" id="inputN" value="4" min="2" max="32">
+        </div>
+        <div class="input-group">
+            <label for="inputD">Subdivision ($d$)</label>
+            <input type="number" id="inputD" value="2" min="2" max="8">
+        </div>
+        <button id="regenBtn">Regenerate System</button>
+    </div>
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="explorer-layout">
+
+        <!-- VISUALIZATION COLUMN -->
+        <div class="vis-column">
+
+            <!-- GRID -->
+            <div>
+                <div class="subsection-title">1. Classical Image Grid ($N \times N$)</div>
+                <div class="grid-wrapper" id="pixelGrid"></div>
+                <div style="margin-top:10px; font-style: italic; font-size:0.8rem; text-align:center;">
+                    Click any pixel to see its hierarchical address decomposition.
+                </div>
+            </div>
+
+            <!-- TREE -->
+            <div>
+                <div class="subsection-title">2. Quantum Hierarchical D-Tree (Multi-Resolution Views)</div>
+                <div class="tree-wrapper" id="treeContainer"></div>
+                <div style="margin-top:10px; font-style: italic; font-size:0.8rem; text-align:center;">
+                    Each level shows the image partitioned into finer blocks. Nodes are positioned spatially relative to
+                    the image.
+                </div>
+            </div>
+        </div>
+
+        <!-- MATH COLUMN -->
+        <div class="math-column">
+            <div class="interactive-math-panel">
+                <div
+                    style="text-align: center; border-bottom: 2px solid #000; padding-bottom:10px; margin-bottom: 20px; font-weight: bold; text-transform: uppercase;">
+                    Dynamic State Analysis</div>
+
+                <div id="defaultMsg" class="instruction">
+                    Click an element on the left to trace its definition through the equations.
+                </div>
+
+                <div id="mathContent" style="display:none;">
+                    <!-- Content Injected via JS -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        (function () {
+            // DOM Elements
+            const grid = document.getElementById('pixelGrid');
+            const treeContainer = document.getElementById('treeContainer');
+            const errorMsg = document.getElementById('errorMsg');
+            const mathContent = document.getElementById('mathContent');
+            const defaultMsg = document.getElementById('defaultMsg');
+            const inputN = document.getElementById('inputN');
+            const inputD = document.getElementById('inputD');
+            const regenBtn = document.getElementById('regenBtn');
+
+            // State
+            let currentN = 4;
+            let currentD = 2;
+            let currentL = 2;
+
+            // --- INITIALIZATION ---
+            function init(N, d) {
+                const L = Math.floor(Math.log(N) / Math.log(d));
+
+                if (L < 1) {
+                    errorMsg.innerText = `Error: N (${N}) must be divisible by d (${d}) to form a hierarchy.`;
+                    return;
+                } else {
+                    errorMsg.innerText = "";
+                }
+
+                currentN = N;
+                currentD = d;
+                currentL = L;
+
+                // Reset View
+                mathContent.style.display = 'none';
+                defaultMsg.style.display = 'block';
+                grid.innerHTML = '';
+                treeContainer.innerHTML = '';
+
+                // 1. Grid Setup
+                grid.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
+                grid.style.gridTemplateRows = `repeat(${N}, 1fr)`;
+
+                // Generate Pixels
+                const numPixels = N * N;
+                for (let i = 0; i < numPixels; i++) {
+                    const x = i % N;
+                    const y = Math.floor(i / N);
+
+                    const div = document.createElement('div');
+                    div.className = 'pixel';
+                    // Text inside pixel: Show coordinate if space allows, otherwise hide
+                    div.innerText = N > 16 ? '' : `${x},${y}`;
+                    if (N > 8) div.style.fontSize = '0.5rem';
+
+                    div.dataset.index = i;
+                    div.dataset.x = x;
+                    div.dataset.y = y;
+                    div.onclick = () => selectPixel(x, y, i);
+                    grid.appendChild(div);
+                }
+
+                // 2. Tree Setup
+                // Root
+                const rootLevel = createTreeLevel(0, 1); // 1 col
+                const rootNode = createNode(0, 0, 'root', 'Img', 'large');
+                rootNode.onclick = () => selectNode(0, 0);
+                rootLevel.appendChild(rootNode);
+                treeContainer.appendChild(rootLevel);
+
+                // Levels
+                for (let k = 1; k <= L; k++) {
+                    treeContainer.appendChild(createConnector());
+
+                    const numNodes = Math.pow(d, 2 * k);
+                    const gridWidth = Math.pow(d, k);
+                    const levelDiv = createTreeLevel(k, gridWidth);
+
+                    // Determine styling based on density
+                    let styleClass = 'large';
+                    if (numNodes > 16) styleClass = 'medium';
+                    if (numNodes > 64) styleClass = 'small';
+                    if (numNodes > 256) styleClass = 'tiny';
+
+                    for (let j = 0; j < numNodes; j++) {
+                        const isLeaf = (k === L);
+                        const label = isLeaf ? `c` : `p`;
+                        const text = styleClass === 'small' || styleClass === 'tiny' ? '' : label;
+
+                        const node = createNode(k, j, isLeaf ? 'leaf' : 'parent', text, styleClass);
+                        node.onclick = () => selectNode(k, j);
+                        levelDiv.appendChild(node);
+                    }
+                    treeContainer.appendChild(levelDiv);
+                }
+
+                if (window.MathJax && window.MathJax.typeset) MathJax.typeset();
+            }
+
+            // --- DOM HELPERS ---
+            function createTreeLevel(levelIndex, columns) {
+                const div = document.createElement('div');
+                div.className = 'tree-level';
+                div.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+                return div;
+            }
+
+            function createNode(level, index, type, text, styleClass) {
+                const div = document.createElement('div');
+                div.className = `node ${type} ${styleClass}`;
+                div.innerText = text;
+                div.dataset.level = level;
+                div.dataset.index = index;
+                return div;
+            }
+
+            function createConnector() {
+                const div = document.createElement('div');
+                div.className = 'connector';
+                div.innerText = '↓';
+                div.style.color = '#ccc';
+                div.style.fontSize = '12px';
+                div.style.background = 'transparent';
+                div.style.width = 'auto';
+                div.style.marginBottom = '5px';
+                return div;
+            }
+
+            // --- MATH LOGIC ---
+            function calculateQVector(x, y) {
+                const vector = [];
+                for (let k = 1; k <= currentL; k++) {
+                    const s_prev = currentN / Math.pow(currentD, k - 1);
+                    const qx = Math.floor((x % s_prev) * currentD / s_prev);
+                    const qy = Math.floor((y % s_prev) * currentD / s_prev);
+
+                    const s_k = currentN / Math.pow(currentD, k);
+                    const bx = Math.floor(x / s_k);
+                    const by = Math.floor(y / s_k);
+                    const gridWidth = Math.pow(currentD, k);
+                    const linearIndex = by * gridWidth + bx;
+
+                    vector.push({ k, qx, qy, linearIndex, s_prev });
+                }
+                return vector;
+            }
+
+            // --- SELECTION ---
+            function clearHighlights() {
+                document.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+                document.querySelectorAll('.path').forEach(el => el.classList.remove('path'));
+                document.querySelectorAll('.child-outline').forEach(el => el.classList.remove('child-outline'));
+            }
+
+            function selectPixel(x, y, index) {
+                clearHighlights();
+                grid.children[index].classList.add('active');
+
+                const Q = calculateQVector(x, y);
+
+                const root = treeContainer.querySelector('.node[data-level="0"]');
+                if (root) root.classList.add('path');
+
+                Q.forEach(q => {
+                    const node = treeContainer.querySelector(`.node[data-level="${q.k}"][data-index="${q.linearIndex}"]`);
+                    if (node) {
+                        if (q.k === currentL) node.classList.add('active');
+                        else node.classList.add('path');
+                    }
+                });
+
+                updateNarrativePanel(x, y, Q);
+            }
+
+            function selectNode(level, index) {
+                clearHighlights();
+                const node = treeContainer.querySelector(`.node[data-level="${level}"][data-index="${index}"]`);
+                if (node) node.classList.add('active');
+
+                const gridWidth = Math.pow(currentD, level);
+                const bx = index % gridWidth;
+                const by = Math.floor(index / gridWidth);
+                const s_k = currentN / Math.pow(currentD, level);
+
+                const startX = bx * s_k;
+                const startY = by * s_k;
+                const endX = startX + s_k;
+                const endY = startY + s_k;
+
+                const pixels = grid.querySelectorAll('.pixel');
+                pixels.forEach(p => {
+                    const px = parseInt(p.dataset.x);
+                    const py = parseInt(p.dataset.y);
+                    if (px >= startX && px < endX && py >= startY && py < endY) {
+                        p.classList.add('path');
+                    }
+                });
+
+                const Q = calculateQVector(startX, startY);
+                const root = treeContainer.querySelector('.node[data-level="0"]');
+                if (root) root.classList.add('path');
+
+                Q.forEach(q => {
+                    if (q.k < level) {
+                        const n = treeContainer.querySelector(`.node[data-level="${q.k}"][data-index="${q.linearIndex}"]`);
+                        if (n) n.classList.add('path');
+                    }
+                });
+
+                // Highlight direct children
+                if (level < currentL) {
+                    const nextLevel = level + 1;
+                    const nextGridWidth = Math.pow(currentD, nextLevel);
+                    const startBx = bx * currentD;
+                    const startBy = by * currentD;
+
+                    for (let i = 0; i < currentD; i++) {
+                        for (let j = 0; j < currentD; j++) {
+                            const childBx = startBx + i;
+                            const childBy = startBy + j;
+                            const childIndex = childBy * nextGridWidth + childBx;
+                            const childNode = treeContainer.querySelector(`.node[data-level="${nextLevel}"][data-index="${childIndex}"]`);
+                            if (childNode) childNode.classList.add('child-outline');
+                        }
+                    }
+                }
+
+                updateNarrativePanel(startX, startY, calculateQVector(startX, startY));
+            }
+
+            function updateNarrativePanel(x, y, Q) {
+                defaultMsg.style.display = 'none';
+                mathContent.style.display = 'block';
+
+                const vecVal = Q.map(q => `(${q.qx},${q.qy})`).join(', ');
+                const ketStr = Q.map(q => `|${q.qx}\\rangle^x |${q.qy}\\rangle^y`).join(' \\otimes ');
+
+                let html = `
+                    <div class="narrative-block">
+                        <span class="narrative-title">Objective: Pixel Localization</span>
+                        <p class="narrative-text">
+                            We aim to locate the specific pixel at classical coordinate <strong>(${x}, ${y})</strong> within the ${currentN}x${currentN} image.
+                            Instead of scanning all pixels linearly, the MHRQI algorithm decomposes this coordinate into a hierarchical path.
+                        </p>
+                    </div>
+
+                    <div class="narrative-block">
+                        <span class="narrative-title">Step 1: Recursive Subdivision</span>
+                        <p class="narrative-text">
+                            The algorithm zooms into the image across <strong>${currentL} levels</strong>. At each level $k$, the region is divided into a $${currentD} \\times ${currentD}$ grid of sub-blocks. 
+                            We calculate the local index $(Q_k^x, Q_k^y)$ for the target pixel at each zoom level:
+                        </p>
+                `;
+
+                // Build Step List with Requested Format
+                Q.forEach(q => {
+                    const modX = x % q.s_prev;
+                    const modY = y % q.s_prev;
+                    const scale = currentD / q.s_prev;
+                    const prevK = q.k - 1;
+
+                    html += `
+                        <div class="math-step-box">
+                            <span class="math-label-small">Level ${q.k} Analysis</span>
+                            
+                            <!-- Step A: Block Size -->
+                            <span class="math-label-small">1. Calculate Block Size ($s_{k-1}$):</span>
+                            The region size at level $k-1$ is determined by the image size $N$ and subdivision $d$:
+                            $$ s_{k-1} = \\frac{N}{d^{k-1}} = \\frac{${currentN}}{${currentD}^{${prevK}}} = ${q.s_prev} $$
+                            
+                            <!-- Step B: Coordinate Index -->
+                            <span class="math-label-small">2. Calculate Local Index ($Q_k$):</span>
+                            <span class="math-label-small">Given:</span>
+                            $x = ${x}, \\quad y = ${y}, \\quad s_{k-1} = ${q.s_prev}, \\quad d = ${currentD}$
+                            <br>
+                            <span class="math-label-small">Formula:</span>
+                            $$Q_k(c) = \\lfloor (c \\bmod s_{k-1}) \\cdot \\frac{d}{s_{k-1}} \\rfloor$$
+                            <br>
+                            <span class="math-label-small">Solution (X):</span>
+                            $$ \\begin{aligned} 
+                            Q_{${q.k}}^x &= \\lfloor (${x} \\bmod ${q.s_prev}) \\cdot \\frac{${currentD}}{${q.s_prev}} \\rfloor \\\\
+                                         &= \\lfloor ${modX} \\cdot ${scale} \\rfloor \\\\
+                                         &= \\boxed{${q.qx}}
+                            \\end{aligned} $$
+                            <br>
+                            <span class="math-label-small">Solution (Y):</span>
+                            $$ \\begin{aligned} 
+                            Q_{${q.k}}^y &= \\lfloor (${y} \\bmod ${q.s_prev}) \\cdot \\frac{${currentD}}{${q.s_prev}} \\rfloor \\\\
+                                         &= \\lfloor ${modY} \\cdot ${scale} \\rfloor \\\\
+                                         &= \\boxed{${q.qy}}
+                            \\end{aligned} $$
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+
+                html += `
+                    <div class="narrative-block">
+                        <span class="narrative-title">Step 2: Hierarchical Vector Construction</span>
+                        <p class="narrative-text">
+                            By concatenating these local decisions, we form the unique address vector $H(x,y)$. This vector acts as the "key" to the pixel's data in the quantum state.
+                        </p>
+                        <div class="narrative-eq">
+                            \\[ H(${x},${y}) = [${vecVal}] \\]
+                        </div>
+                    </div>
+
+                    <div class="narrative-block">
+                        <span class="narrative-title">Step 3: Quantum State Encoding</span>
+                        <p class="narrative-text">
+                            Finally, this classical vector is mapped to a tensor product of quantum states. The pixel's intensity is entangled with this specific path.
+                        </p>
+                        <div class="narrative-eq">
+                            \\[ |\\Psi_{pixel}\\rangle = ${ketStr} \\otimes |\\psi_{intensity}\\rangle \\]
+                        </div>
+                    </div>
+                `;
+
+                mathContent.innerHTML = html;
+
+                if (window.MathJax) {
+                    MathJax.typesetPromise([mathContent]);
+                }
+            }
+
+            regenBtn.addEventListener('click', () => {
+                const nVal = parseInt(inputN.value);
+                const dVal = parseInt(inputD.value);
+                init(nVal, dVal);
+            });
+
+            // Start
+            init(4, 2);
+
+        })();
+    </script>
+</body>
+
+</html>
