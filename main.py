@@ -1,3 +1,13 @@
+"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  MHRQI - Magnitude Hierarchical Representation of Quantum Images            ║
+║  Main Pipeline: Encoding, Denoising, Benchmarking                           ║
+║                                                                              ║
+║  Author: Keno-00                                                             ║
+║  License: Apache 2.0                                                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"""
+
 import cv2, math
 import matplotlib.pyplot as plt
 import utils

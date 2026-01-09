@@ -1,6 +1,6 @@
 # MHRQI Benchmarking
 
-**Comparison methodology and metrics (no performance claims).**
+**Comparison methodology and metrics.**
 
 ---
 

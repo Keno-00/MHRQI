@@ -1,7 +1,18 @@
+"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  MHRQI - Magnitude Hierarchical Representation of Quantum Images            ║
+║  Utility Functions: Encoding, Reconstruction, Sibling Smoothing             ║
+║                                                                              ║
+║  Author: Keno-00                                                             ║
+║  License: Apache 2.0                                                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"""
+
 import numpy as np
 from collections import defaultdict
 from typing import Any, Mapping, Optional, List,Iterable
 import math
+
 
 ############################
 # $1$ Classical Image Precompute functions

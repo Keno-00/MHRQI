@@ -1,3 +1,13 @@
+"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  MHRQI - Magnitude Hierarchical Representation of Quantum Images            ║
+║  Qiskit Implementation                                                       ║
+║                                                                              ║
+║  Author: Keno-00                                                             ║
+║  License: Apache 2.0                                                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"""
+
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
 from qiskit_aer import Aer, AerSimulator
 
@@ -8,6 +18,7 @@ import itertools  # Added for dynamic parent state generation
 import utils
 from collections import defaultdict
 import random
+
 
 
 # -------------------------

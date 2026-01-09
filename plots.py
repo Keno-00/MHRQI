@@ -1,3 +1,13 @@
+"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  MHRQI - Magnitude Hierarchical Representation of Quantum Images            ║
+║  Plotting and Metrics: Visualization, Quality Assessment, Benchmarking      ║
+║                                                                              ║
+║  Author: Keno-00                                                             ║
+║  License: Apache 2.0                                                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import utils
@@ -11,6 +21,7 @@ if not hasattr(np, 'int'):
     np.int = int
 import scipy.misc
 from PIL import Image
+
 
 def _imresize_patch(arr, size, interp='bilinear', mode=None):
     if mode == 'F':

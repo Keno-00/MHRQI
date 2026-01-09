@@ -1,3 +1,13 @@
+"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  MHRQI - Magnitude Hierarchical Representation of Quantum Images            ║
+║  Classical Denoiser Comparison: BM3D, NL-Means, SRAD                        ║
+║                                                                              ║
+║  Author: Keno-00                                                             ║
+║  License: Apache 2.0                                                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"""
+
 import numpy as np
 import cv2
 from bm3d import bm3d, BM3DProfile, BM3DStages
