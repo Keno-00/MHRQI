@@ -1,26 +1,21 @@
-# MHRQI - Multiscale Hierarchical Representation of Quantum Images
+# MHRQI - Magnitude Hierarchical Representation of Quantum Images
 
-**Author**: Keno S. Jose
+**Author**: Keno S. Jose  
+**License**: Apache 2.0
 
-A novel quantum image representation and processing framework that leverages hierarchical position encoding for multi-scale image analysis and seam-aware denoising.
+A quantum image processing framework that encodes images using hierarchical position qubits and applies quantum denoising.
 
 ---
 
-## Overview
+## What is MHRQI?
 
-MHRQI introduces a **hierarchical coordinate vector (HCV)** for encoding pixel positions, enabling natural multi-scale processing within quantum circuits. The framework supports two encoding modes:
+MHRQI encodes grayscale images into quantum circuits using:
 
-| Mode | Intensity Encoding | Use Case |
-|------|-------------------|----------|
-| **MHRQI** | Amplitude (rotation angle) | Probabilistic reconstruction |
-| **MHRQIB** | Basis (binary qubits) | Exact intensity retrieval |
+1. **Hierarchical position encoding** - Pixels organized in a quad-tree structure using qubit levels
+2. **Basis-encoded intensities** - 8-bit pixel values stored directly in computational basis states
+3. **Quantum denoising** - Grover-like diffusion operators applied at each hierarchy level
 
-### Key Features
-
-- **Hierarchical Position Encoding**: Quad-tree structure (for qubits) enabling multi-resolution analysis
-- **Seam-Aware Denoising**: Quantum algorithms that prevent block boundary artifacts
-- **Multiple Backends**: Support for Qiskit, MQT Qudits, and Decision Diagrams
-- **OCT B-scan Denoising**: Targeted application for medical imaging (speckle reduction)
+This approach enables multi-scale image processing where coarse and fine details are naturally separated by the hierarchy.
 
 ---
 
@@ -34,7 +29,6 @@ cd MHRQI
 # Create virtual environment (recommended)
 python -m venv venv
 source venv/bin/activate  # Linux/macOS
-# or: venv\Scripts\activate  # Windows
 
 # Install dependencies
 pip install -r requirements.txt
@@ -44,31 +38,58 @@ pip install -r requirements.txt
 
 - Python 3.9+
 - Qiskit >= 1.0
-- Qiskit Aer (GPU recommended)
-- OpenCV
-- NumPy, Matplotlib
-- Optional: MQT Qudits, BM3D, SRAD
+- Qiskit Aer (GPU support recommended)
+- OpenCV, NumPy, Matplotlib
+- For benchmarking: BM3D, SRAD, scikit-video
 
 ---
 
 ## Quick Start
 
 ```python
-import main
+from main import main
 
-# Run MHRQI pipeline with denoising
-original, reconstructed, run_dir = main.main(
-    shots=1000,           # Measurement shots
-    n=8,                  # Image dimension (8x8)
-    d=2,                  # Qudit dimension (2=qubit)
-    denoise=True,         # Enable quantum denoising
-    use_shots=True,       # Use shot-based measurement
-    backend='qiskit_mhrqib',  # MHRQIB mode
+# Run MHRQI with quantum denoising
+original, reconstructed, run_dir = main(
+    n=64,                 # Image size (64x64)
+    d=2,                  # Qubit-based hierarchy
+    denoise=True,         # Apply quantum denoiser
+    use_shots=False,      # Statevector (exact simulation)
+    backend='qiskit_mhrqib',
     fast=True,            # Use statevector initialization
-    verbose_plots=True,   # Show visualization
-    run_comparison=True   # Compare with classical methods
+    verbose_plots=True,
+    run_comparison=True   # Compare with BM3D, NL-Means, SRAD
 )
 ```
+
+Results saved to `runs/<timestamp>/`
+
+---
+
+## How It Works
+
+### 1. Hierarchical Encoding
+
+For an N×N image where N = 2^L:
+- **Position**: 2L qubits encode pixel coordinates hierarchically
+- **Intensity**: 8 qubits store grayscale value (0-255) in binary
+
+**Example** (4×4 image, L=2):
+- Pixel (0,0) → qubits: `|0000⟩` (position) + `|intensity⟩`
+- Pixel (3,3) → qubits: `|1111⟩` (position) + `|intensity⟩`
+
+### 2. Quantum Denoising
+
+Applies partial Grover diffusion at each hierarchy level:
+- **Coarse levels** (k=0,1): Gentle blending across large blocks
+- **Fine levels** (k=L-1): Stronger smoothing of noise
+
+Classical post-processing uses walker probability to preserve edges.
+
+### 3. Measurement and Reconstruction
+
+- **Statevector mode**: Direct amplitude extraction (exact)
+- **Shot-based mode**: Statistical reconstruction from measurements
 
 ---
 
@@ -76,149 +97,87 @@ original, reconstructed, run_dir = main.main(
 
 ```
 MHRQI/
-├── main.py              # Main pipeline entry point
-├── circuit_qiskit.py    # Qiskit circuit implementations
-├── circuit_dd.py        # Decision diagram backend
-├── circuit.py           # MQT Qudits backend
-├── utils.py             # Helper functions (HCV, binning)
+├── main.py              # Pipeline entry point
+├── circuit_qiskit.py    # Qiskit implementation (primary)
+├── utils.py             # Hierarchy encoding, image reconstruction
 ├── plots.py             # Visualization and metrics
-├── compare_to.py        # Classical denoiser comparison
+├── compare_to.py        # Classical benchmark comparison
 ├── docs/
-│   ├── mhrqib_encoder_math.md   # Encoder mathematics
-│   ├── mhrqib_denoiser_math.md  # Denoiser mathematics
-│   └── hierarchical_denoising_math.md  # Seam theory
+│   ├── knowledge/       # Technical documentation
+│   └── site/            # Website files
 └── runs/                # Output directory
 ```
 
 ---
 
-## System Architecture
-
-### Overall Workflow
-
-```mermaid
-graph TD
-    User(["User / Main"]) --> Input["Input Image"]
-    Input --> Pre["Preprocessing"]
-    Pre -->|"Resize, Normalize, HCV"| Encod["Encoding Strategy"]
-    
-    subgraph Core_Pipeline [Core Pipeline]
-        Encod -->|"Config"| Circuit["Circuit Construction"]
-        Circuit -->|"Quantum Circuit"| Sim["Simulation Engine"]
-        Sim -->|"Counts / Statevector"| Post["Post-processing"]
-    end
-    
-    Post --> Output["Output Image"]
-    Output --> Metrics["Evaluation & Benchmarking"]
-```
-
-### Subsystem Documentation
-
-Detailed architecture and flowcharts for subsystems are available in the documentation:
-
-- **[Circuit Construction](docs/mhrqib_encoder_math.md)**: Encoding strategy, lazy vs. gate-based upload.
-- **[Denoising Logic](docs/mhrqib_denoiser_math.md)**: Phase marking, gradient sensing, and diffusion process.
-- **[Benchmarking Pipeline](docs/benchmarking.md)**: Comparison methodology, metrics (FSIM, SSI, NIQE), and reporting.
-
----
-
-## Mathematical Foundations
-
-### Quantum State (MHRQIB)
-
-$$|\text{MHRQIB}\rangle = \frac{1}{\sqrt{N^2}} \sum_{r,c} |I(r,c)\rangle_{\text{int}} \otimes |\mathbf{h}(r,c)\rangle_{\text{pos}}$$
-
-### Hierarchical Coordinate Vector
-
-For position $(r, c)$ in an $N \times N$ image where $N = d^L$:
-
-$$\mathbf{h}(r,c) = (q_{y,0}, q_{x,0}, q_{y,1}, q_{x,1}, \ldots, q_{y,L-1}, q_{x,L-1})$$
-
-### Position Diffusion Denoising
-
-Apply $R_X(\theta)$ rotations to position qubits with scale-dependent weights:
-
-$$\theta_k = \alpha \cdot \left(\frac{k+1}{L}\right)^2$$
-
-See [docs/mhrqib_encoder_math.md](docs/mhrqib_encoder_math.md) and [docs/mhrqib_denoiser_math.md](docs/mhrqib_denoiser_math.md) for complete derivations.
-
----
-
-## Configuration Options
-
-| Parameter | Values | Description |
-|-----------|--------|-------------|
-| `backend` | `'qiskit_mhrqi'`, `'qiskit_mhrqib'`, `'dd'`, `'mqt'` | Simulation backend |
-| `d` | `2`, `3`, ... | Qudit dimension |
-| `denoise` | `True`, `False` | Enable quantum denoising |
-| `fast` | `True`, `False` | Use statevector init (faster) |
-| `use_shots` | `True`, `False` | Shot vs. statevector measurement |
-
----
-
 ## Benchmarking
 
-The framework includes comprehensive benchmarking against classical denoisers:
+Compare MHRQI against classical denoisers:
 
 ```bash
 python compare_to.py
 ```
-v
-### Metrics
-
-| Category | Metrics |
-|----------|---------|
-| Full Reference | PSNR, SSIM, FSIM |
-| No Reference | NIQE, PIQE, BRISQUE |
-| Speckle-specific | ENL, SMPI |
 
 ### Compared Methods
+- **BM3D** - Block-matching 3D filtering
+- **NL-Means** - Non-local means
+- **SRAD** - Speckle reducing anisotropic diffusion
 
-- BM3D
-- NL-Means
-- SRAD
-- Bilateral Filter
+### Metrics Calculated
 
----
+| Category | Metrics | Purpose |
+|----------|---------|---------|
+| Full Reference | FSIM, SSIM | Similarity to reference |
+| No Reference | NIQE, PIQE, BRISQUE | Perceptual quality |
+| Speckle Consistency | SSI, SMPI | Noise suppression |
 
-## Research Applications
-
-### OCT B-scan Denoising
-
-The framework is designed for denoising Optical Coherence Tomography (OCT) images, which suffer from speckle noise. The hierarchical representation provides:
-
-1. **Multi-scale analysis**: Separate coarse structure from fine noise
-2. **Seam-free reconstruction**: Avoid block artifacts common in hierarchical processing
-3. **Pure quantum processing**: No classical post-processing required
+**Note:** Benchmarks are for methodology demonstration, not performance claims.
 
 ---
 
 ## Documentation
 
-- [Encoder Mathematics](docs/mhrqib_encoder_math.md) - Complete derivation of MHRQIB encoding
-- [Denoiser Mathematics](docs/mhrqib_denoiser_math.md) - Position diffusion and seam-aware algorithms
-- [Seam Theory](docs/hierarchical_denoising_math.md) - Theoretical foundations for seam prevention
+- **[Knowledge Base](/docs/knowledge/README.md)** - Technical guides and implementation details
+- **[Website](/docs/site/)** - Interactive visualization and demos
+
+---
+
+## Configuration
+
+Key parameters in `main.py`:
+
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `backend` | `'qiskit_mhrqib'` (primary) | Simulation backend |
+| `n` | 4, 8, 16, 32, 64, 128 | Image dimension (n×n) |
+| `d` | 2 (qubits) | Hierarchy base |
+| `denoise` | `True`, `False` | Enable quantum denoising |
+| `fast` | `True` | Use statevector init (vs gates) |
+| `use_shots` | `True`, `False` | Shot-based or statevector measurement |
+
+---
+
+## License
+
+This project is licensed under the **Apache License 2.0**.
+
+See [LICENSE](LICENSE) for details.
 
 ---
 
 ## Citation
 
 ```bibtex
-@article{jose2025mhrqi,
-  title={MHRQI: Multiscale Hierarchical Representation of Quantum Images},
+@software{jose2026mhrqi,
+  title={MHRQI: Magnitude Hierarchical Representation of Quantum Images},
   author={Jose, Keno S.},
-  year={2025}
+  year={2026},
+  license={Apache-2.0}
 }
 ```
 
 ---
 
-## License
-
-[MIT License](LICENSE)
-
----
-
 ## Acknowledgments
 
-This research focuses on quantum image processing without classical post-processing, demonstrating that hierarchical quantum structures can inherently provide multi-scale denoising capabilities.
+This project demonstrates quantum image processing using hierarchical quantum structures for multi-scale analysis and denoising.
