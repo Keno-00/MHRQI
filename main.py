@@ -110,7 +110,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, backend='qiskit_mh
     # -------------------------
     # Backend-specific circuit creation
     if backend in ['qiskit', 'qiskit_mhrqib', 'qiskit_mhrqib_dtqw']:
-        qc, pos_regs, intensity_reg, bias = circuit_2.MHRQIB_init_qiskit(d, L_max)
+        qc, pos_regs, intensity_reg, bias = circuit_2.MHRQI_init_qiskit(d, L_max)
         upload_fn = circuit_2.MHRQIB_lazy_upload_intensity_qiskit if fast else circuit_2.MHRQIB_upload_intensity_qiskit
         data_qc = upload_fn(qc, pos_regs, intensity_reg, d, hierarchy_matrix, normalized_img)
         
