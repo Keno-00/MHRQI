@@ -163,14 +163,14 @@ def mhrqi_bins_to_image(bins, hierarchy_matrix, d, image_shape, bias_stats=None,
         hierarchy_matrix: position state matrix
         d: dimension
         image_shape: target image shape (rows, cols)
-        bias_stats: optional dict (not used in walker mode)
+        bias_stats: optional dict (not used in statevector mode)
         original_img: REQUIRED - original normalized image [0,1] for denoising
     
     Returns:
         img: reconstructed image with edge-preserving denoising
     
     Hierarchical Seam-Aware Denoising:
-        - Extract edge weights from walker probability distribution
+        - Extract edge weights from measurement probability distribution
         - Smooth ONLY within sibling blocks at each hierarchy level
         - Stronger smoothing for non-edges, preserve edges
     """
@@ -178,10 +178,10 @@ def mhrqi_bins_to_image(bins, hierarchy_matrix, d, image_shape, bias_stats=None,
     N = image_shape[0]
     L_max = int(np.log2(N))
     
-    # Extract edge map from walker probability
+    # Extract edge map from measurement probability
     # INTERPRETATION: 
-    #   HIGH probability = walker concentrates here = NOISY/UNIFORM region = should FLATTEN
-    #   LOW probability = walker avoids = EDGE/STRUCTURE = should PRESERVE
+    #   HIGH probability = frequently measured = NOISY/UNIFORM region = should FLATTEN
+    #   LOW probability = rarely measured = EDGE/STRUCTURE = should PRESERVE
     total_prob = sum(bins[tuple(v)]['count'] for v in hierarchy_matrix if tuple(v) in bins)
     n_pixels = len(hierarchy_matrix)
     uniform_prob = total_prob / n_pixels if n_pixels > 0 else 1.0

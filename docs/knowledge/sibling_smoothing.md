@@ -68,7 +68,7 @@ Boundary between A and B: sharp jump from 100 to 200 = SEAM
    ```
 
 2. **Check if homogeneous**:
-   - Use edge map from walker probability
+   - Use edge map from measurement probability
    - If most siblings are "flat" (high probability) → smooth
    - If many siblings are "edges" (low probability) → preserve
 
@@ -114,7 +114,7 @@ After measurement, pixels that are siblings at level k will have statistically m
 
 Not all siblings should be averaged equally.
 
-### Walker Probability as Edge Indicator
+### Measurement Probability as Edge Indicator
 
 During quantum evolution, the measurement probability distribution reflects image structure:
 - **Flat regions**: High, uniform probability → many shots

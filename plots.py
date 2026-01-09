@@ -730,7 +730,7 @@ def plot_homogeneity_map(edge_map, original_img, N, d, L_max, threshold=0.3, run
     Visualize homogeneous (green) and heterogeneous (red) blocks.
     
     Args:
-        edge_map: dict of {(r,c): edge_weight} from walker probability
+        edge_map: dict of {(r,c): edge_weight} from measurement probability
         original_img: original grayscale image (normalized [0,1])
         N: image size
         d: qudit dimension

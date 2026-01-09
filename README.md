@@ -84,7 +84,7 @@ Applies partial Grover diffusion at each hierarchy level:
 - **Coarse levels** (k=0,1): Gentle blending across large blocks
 - **Fine levels** (k=L-1): Stronger smoothing of noise
 
-Classical post-processing uses walker probability to preserve edges.
+Classical post-processing uses measurement probability to preserve edges.
 
 ### 3. Measurement and Reconstruction
 
@@ -138,7 +138,8 @@ python compare_to.py
 ## Documentation
 
 - **[Knowledge Base](/docs/knowledge/README.md)** - Technical guides and implementation details
-- **[Website](/docs/site/)** - Interactive visualization and demos
+- **[Website](/docs/site/)** - Interactive visualization and demos.
+can be found locally at `docs/site/index.html` or by going here: [kenojose.site](https://kenojose.site)
 
 ---
 

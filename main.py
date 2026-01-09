@@ -169,7 +169,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, backend='qiskit_mh
     # Reconstruction
     # -------------------------
     if backend in ['qiskit', 'qiskit_mhrqib']:
-        # Pass original normalized image for walker-based edge denoising
+        # Pass original normalized image for probability-based edge denoising
         newimg = utils.mhrqi_bins_to_image(bins, hierarchy_matrix, d, (N, N), 
                                             bias_stats=bias_stats,)
         newimg = (np.clip(newimg, 0.0, 1.0) * 255).astype(np.uint8)

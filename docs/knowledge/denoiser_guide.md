@@ -74,7 +74,7 @@ The CP gate applies phase rotation proportional to the mixing strength, which af
 
 After quantum measurement, we reconstruct the image with edge-aware classical smoothing:
 
-1. **Extract edge map** from walker probability:
+1. **Extract edge map** from measurement probability:
    - High probability → flat region → smooth more
    - Low probability → edge → preserve
 
@@ -133,6 +133,6 @@ After quantum measurement, we reconstruct the image with edge-aware classical sm
 
 ## Summary
 
-The denoiser is a **hierarchical partial Grover diffusion** that mixes pixel values with their siblings at multiple scales. Edge preservation is achieved through classical post-processing using walker probability as an edge indicator.
+The denoiser is a **hierarchical partial Grover diffusion** that mixes pixel values with their siblings at multiple scales. Edge preservation is achieved through classical post-processing using measurement probability as an edge indicator.
 
 It's simple, effective, and based on well-understood quantum operators.

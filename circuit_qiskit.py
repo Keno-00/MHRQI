@@ -336,7 +336,7 @@ def DENOISER_qiskit(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, stre
     """
     Unified MHRQI denoiser using bias qubit for hit/miss weighting.
     
-    Based on: docs/mhrqib_denoiser_math.md, docs/seam_theory.md, docs/dtqw_math_tutorial.md
+    Based on: docs/knowledge/denoiser_guide.md, docs/knowledge/sibling_smoothing.md
     
     Bias Qubit Algorithm:
     1. Initialize bias qubit in superposition (H)
@@ -380,8 +380,8 @@ def DENOISER_qiskit(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, stre
         return _uniform_averaging(qc, pos_regs, intensity_reg, strength, num_levels)
     
     # Work qubits for oracle computation
-    gradient_qubit = work_qubits[0]  # Stores comparison result
-    coin_qubit = work_qubits[1]      # Coin for walk
+    shift_qubit = work_qubits[0]    # Position shift qubit
+    grad_qubit = work_qubits[1]      # Gradient accumulator
     bias_qubit = bias[0]
     
     # =========================================
