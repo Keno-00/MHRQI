@@ -22,6 +22,7 @@ import csv
 import time
 import compare_to
 import matplotlib
+import dtqw_experimental  # Experimental DTQW denoiser
 import os
 
 
@@ -62,7 +63,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, backend='qiskit_mh
         tuple: (original_image, reconstructed_image, run_directory_path)
     """
     # Validate backend
-    valid_backends = {'qiskit_mhrqi', 'qiskit_mhrqib', 'mqt_mhrqi', 'mqt_dd_mhrqi'}
+    valid_backends = {'qiskit_mhrqi', 'qiskit_mhrqib', 'qiskit_mhrqib_dtqw', 'mqt_mhrqi', 'mqt_dd_mhrqi'}
     if backend not in valid_backends:
         raise ValueError(f"Invalid backend '{backend}'. Must be one of: {valid_backends}")
     
@@ -135,7 +136,13 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, backend='qiskit_mh
     # Denoising
     # -------------------------
     if denoise:
-        if backend in ['qiskit', 'qiskit_mhrqib']:
+        if backend == 'qiskit_mhrqib_dtqw':
+            # EXPERIMENTAL: DTQW denoiser with controlled rotations
+            print("Using EXPERIMENTAL DTQW denoiser...")
+            data_qc = dtqw_experimental.DTQW_denoiser_experimental(
+                data_qc, pos_regs, intensity_reg, base_steps=3, strength=1.0
+            )
+        elif backend in ['qiskit', 'qiskit_mhrqib']:
             data_qc = circuit_2.DENOISER_qiskit(data_qc, pos_regs, intensity_reg, bias, strength=1.65)
         else:
             data_qc = circuit.DENOISER(data_qc, reg, d, L_max, time_step=0.5)
@@ -145,7 +152,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, backend='qiskit_mh
     # -------------------------
     start_time = time.perf_counter()
 
-    if backend in ['qiskit', 'qiskit_mhrqib']:
+    if backend in ['qiskit', 'qiskit_mhrqib', 'qiskit_mhrqib_dtqw']:
         if use_shots:
             counts = circuit_2.simulate_counts(data_qc, shots, use_gpu=True)
             print("finished simulation")
