@@ -11,9 +11,7 @@
 import cv2, math
 import matplotlib.pyplot as plt
 import utils
-import circuit
-import circuit_qiskit as circuit_2
-import circuit_dd as circuit3
+import circuit  # Renamed from circuit_qiskit.py
 import numpy as np
 import plots
 from pathlib import Path
@@ -25,7 +23,6 @@ import matplotlib
 import os
 
 
-linuxmode = True
 
 
 CSV_PATH = Path("mhrqi_runs.csv")
@@ -42,17 +39,16 @@ def save_rows_to_csv(rows, csv_path=CSV_PATH):
             w.writeheader()
         w.writerows(rows)
 
-def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, backend='qiskit_mhrqi', fast=False, verbose_plots=False, img_path=None, run_comparison=True):
+def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, fast=False, verbose_plots=False, img_path=None, run_comparison=True):
     """
-    Main MHRQI/MHRQIB simulation pipeline.
+    Main MHRQI simulation pipeline.
     
     Args:
         shots: number of measurement shots (if use_shots=True)
         n: image dimension (will be resized to n x n)
-        d: qudit dimension (2=qubit, 3=qutrit, etc.)
+        d: qudit dimension (2=qubit)
         denoise: whether to apply denoising circuit
         use_shots: if True, use shot-based simulation; if False, use statevector
-        backend: one of 'qiskit_mhrqi', 'qiskit_mhrqib', 'mqt_mhrqi', 'mqt_dd_mhrqi'
         fast: if True, use lazy (statevector-based) upload for speed
         verbose_plots: if True, show additional debug plots
         img_path: path to input image (defaults to resources/drusen1.jpeg)
@@ -61,10 +57,6 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, backend='qiskit_mh
     Returns:
         tuple: (original_image, reconstructed_image, run_directory_path)
     """
-    # Validate backend
-    valid_backends = {'qiskit_mhrqi', 'qiskit_mhrqib', 'mqt_mhrqi', 'mqt_dd_mhrqi'}
-    if backend not in valid_backends:
-        raise ValueError(f"Invalid backend '{backend}'. Must be one of: {valid_backends}")
     
     # Use default image if not specified
     if img_path is None:
@@ -94,83 +86,36 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, backend='qiskit_mh
         hierarchy_matrix.append(hcv)
 
     # -------------------------
-    # Dictionary Prep (for MQT backends)
-    # -------------------------
-    intensity_dict = None
-    if 'mqt' in backend:
-        intensity_dict = {}
-        for i, hcv in enumerate(hierarchy_matrix):
-            r, c = utils.compose_rc(hcv, d) 
-            bitstring_key = ''.join(str(x) for x in hcv)
-            intensity_dict[bitstring_key] = normalized_img[r, c]
-
-    # -------------------------
     # Circuit Construction
     # -------------------------
-    if backend == 'qiskit' or backend == 'qiskit_mhrqib':
-        # Unified MHRQI with basis-encoded intensity and bias qubit
-        qc, pos_regs, intensity_reg, bias = circuit_2.MHRQI_init_qiskit(d, L_max)
-        upload_fn = circuit_2.MHRQIB_lazy_upload_intensity_qiskit if fast else circuit_2.MHRQIB_upload_intensity_qiskit
-        data_qc = upload_fn(qc, pos_regs, intensity_reg, d, hierarchy_matrix, normalized_img)
-        
-    elif backend == 'mqt_dd_mhrqi':
-        qc, reg = circuit3.MHRQI_init(d, L_max)
-        bias = None
-        pos_regs = None
-        intensity_reg = None
-        data_qc = circuit3.MHRQI_upload_intensity(qc, reg, intensity_dict, approx_threshold=0.1)
-        
-    elif backend == 'mqt_mhrqi':
-        qc, reg = circuit.MHRQI_init(d, L_max)
-        bias = None
-        pos_regs = None
-        intensity_reg = None
-        upload_fn = circuit.MHRQI_lazy_upload_intensity if fast else circuit.MHRQI_upload_intensity
-        if fast:
-            data_qc = upload_fn(qc, reg, intensity_dict, approx_threshold=0.01)
-        else:
-            data_qc = upload_fn(qc, reg, d, hierarchy_matrix, angle_norm)
+    qc, pos_regs, intensity_reg, bias = circuit.MHRQI_init(d, L_max)
+    upload_fn = circuit.MHRQI_lazy_upload if fast else circuit.MHRQI_upload
+    data_qc = upload_fn(qc, pos_regs, intensity_reg, d, hierarchy_matrix, normalized_img)
 
     # -------------------------
     # Denoising
     # -------------------------
     if denoise:
-        if backend in ['qiskit', 'qiskit_mhrqib']:
-            data_qc = circuit_2.DENOISER_qiskit(data_qc, pos_regs, intensity_reg, bias, strength=1.65)
-        else:
-            data_qc = circuit.DENOISER(data_qc, reg, d, L_max, time_step=0.5)
+        data_qc = circuit.DENOISER(data_qc, pos_regs, intensity_reg, bias, strength=1.65)
 
     # -------------------------
     # Simulation
     # -------------------------
     start_time = time.perf_counter()
 
-    if backend in ['qiskit', 'qiskit_mhrqib']:
-        if use_shots:
-            counts = circuit_2.simulate_counts(data_qc, shots, use_gpu=True)
-            print("finished simulation")
-            # TODO: Add counts-based make_bins with denoise flag
-            bins = circuit_2.make_bins_mhrqib_qiskit(counts, hierarchy_matrix)
-            bias_stats = None
-        else:
-            state_vector = circuit_2.simulate_statevector(data_qc)
-            print("finished simulation")
-            if denoise:
-                bins, bias_stats = circuit_2.make_bins_sv(state_vector, hierarchy_matrix, denoise=True)
-            else:
-                bins = circuit_2.make_bins_sv(state_vector, hierarchy_matrix, denoise=False)
-                bias_stats = None
-    else:
-        # MQT
+    if use_shots:
+        counts = circuit.simulate_counts(data_qc, shots, use_gpu=True)
+        print("finished simulation")
+        bins = circuit.make_bins_counts(counts, hierarchy_matrix)
         bias_stats = None
-        if use_shots:
-            counts = circuit.MHRQI_simulate(data_qc, shots=shots)
-            print("finished simulation")
-            bins = utils.make_bins(counts, hierarchy_matrix)
+    else:
+        state_vector = circuit.simulate_statevector(data_qc)
+        print("finished simulation")
+        if denoise:
+            bins, bias_stats = circuit.make_bins_sv(state_vector, hierarchy_matrix, denoise=True)
         else:
-            state_vector = circuit.MHRQI_simulate(data_qc)
-            print("finished simulation")
-            bins = utils.make_bins_sv(state_vector, hierarchy_matrix)
+            bins = circuit.make_bins_sv(state_vector, hierarchy_matrix, denoise=False)
+            bias_stats = None
             
     end_time = time.perf_counter()
     print(f"Simulation time: {end_time - start_time:.4f} seconds")
@@ -178,17 +123,13 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, backend='qiskit_mh
     # -------------------------
     # Reconstruction
     # -------------------------
-    if backend in ['qiskit', 'qiskit_mhrqib']:
-        # Pass original normalized image for probability-based edge denoising
-        newimg = utils.mhrqi_bins_to_image(bins, hierarchy_matrix, d, (N, N), 
-                                            bias_stats=bias_stats,)
-        newimg = (np.clip(newimg, 0.0, 1.0) * 255).astype(np.uint8)
-    else:
-        newimg = plots.bins_to_image(bins, d, N, kind="p")
+    newimg = utils.mhrqi_bins_to_image(bins, hierarchy_matrix, d, (N, N), 
+                                        bias_stats=bias_stats,)
+    newimg = (np.clip(newimg, 0.0, 1.0) * 255).astype(np.uint8)
     # -------------------------
     # Verbose Plots (Homogeneity Map)
     # -------------------------
-    if verbose_plots and denoise and backend in ['qiskit', 'qiskit_mhrqib']:
+    if verbose_plots and denoise:
         # Extract edge_map for visualization
         total_prob = sum(bins[tuple(v)]['count'] for v in hierarchy_matrix if tuple(v) in bins)
         uniform_prob = total_prob / len(hierarchy_matrix) if len(hierarchy_matrix) > 0 else 1.0
@@ -212,7 +153,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, backend='qiskit_mh
     settings = {
         'Image': os.path.basename(img_path) if img_path else 'drusen1.jpeg',
         'Size': f'{n}x{n}',
-        'Backend': backend,
+        'Backend': 'MHRQI (Qiskit)',
         'Fast Mode': fast,
         'Denoise': denoise,
         'Use Shots': use_shots,
@@ -261,8 +202,7 @@ if __name__ == "__main__":
     n = 128  # Image size (64x64 for fast testing)
     d = 2   # qudit dimension: 2=qubit
     
-    # Backend options: 'qiskit_mhrqi', 'qiskit_mhrqib', 'mqt_mhrqi', 'mqt_dd_mhrqi'
-    backend = 'qiskit_mhrqib'
+    # Single MHRQI backend (no choice needed)
     
     # Simulation settings
     use_shots = False       # False = statevector (exact), True = shot-based sampling
@@ -297,7 +237,7 @@ if __name__ == "__main__":
             denoise=denoise,
 
             use_shots=use_shots,
-            backend=backend,
+
             fast=fast,
             verbose_plots=verbose_plots,
             run_comparison=run_comparison

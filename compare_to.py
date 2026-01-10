@@ -247,7 +247,7 @@ def compare_to(image_input, proposed_img=None, methods="all",
         plots.MetricsPlotter.print_summary_text(display_results, ["FSIM", "SSIM"], "Full Reference Metrics (vs Clean Ref)")
         plots.MetricsPlotter.save_summary_report(
             to_uint8(clean_img), 
-            results, 
+            display_results,  # Only participants, not Original
             ["FSIM", "SSIM"], 
             "Full Reference Metrics (vs Clean Ref)", 
             "report_full_ref",

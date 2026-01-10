@@ -631,8 +631,17 @@ class MetricsPlotter:
             valid_items = [(name, data_map[name].get(k, float('nan'))) for name in names]
             valid_items = [x for x in valid_items if not np.isnan(x[1])]
             valid_items.sort(key=lambda x: x[1], reverse=is_higher)
-            for r, (name, val) in enumerate(valid_items):
-                ranks[k][name] = r + 1 
+            
+            # Handle ties: items with same value get same rank
+            current_rank = 1
+            prev_val = None
+            for i, (name, val) in enumerate(valid_items):
+                if prev_val is not None and val == prev_val:
+                    ranks[k][name] = current_rank  # Same rank for ties
+                else:
+                    current_rank = i + 1
+                    ranks[k][name] = current_rank
+                prev_val = val 
 
         # Setup Figure
         has_ref_plot = (ref_img is not None)
