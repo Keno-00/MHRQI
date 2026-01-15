@@ -8,8 +8,7 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
-import itertools  # Added for dynamic parent state generation
-import random  # TODO: Remove if confirmed unused after testing
+import itertools
 from collections import defaultdict
 
 import numpy as np
@@ -182,7 +181,6 @@ def MHRQI_lazy_upload(qc: QuantumCircuit, pos_regs, intensity_reg, d, hierarchy_
     """
     Fast MHRQI(basis) upload using direct statevector initialization.
     """
-    # finalized! dont change!
     qubit_to_idx = {q: i for i, q in enumerate(qc.qubits)}
     pos_indices = [qubit_to_idx[reg[0]] for reg in pos_regs]
     intensity_indices = [qubit_to_idx[q] for q in intensity_reg]
@@ -190,7 +188,6 @@ def MHRQI_lazy_upload(qc: QuantumCircuit, pos_regs, intensity_reg, d, hierarchy_
     dim = 2 ** num_qubits
     bit_depth = len(intensity_indices)
     state = np.zeros(dim, dtype=complex)
-    num_pos = 2 ** len(pos_indices)
     all_indices = pos_indices + intensity_indices
     is_sequential = all(all_indices[i] == i for i in range(len(all_indices)))
     if is_sequential:
@@ -304,12 +301,10 @@ def DENOISER(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, brightness_
         _adjust_brightness(denoise_qc, intensity_reg, -brightness_shift)
 
     # === Sibling superposition ===
-    # DO NOT CHANGE!
-    denoise_qc.h(qy_fine) # superposition (Fine.1.1)
-    denoise_qc.h(qx_fine) # superposition (Fine.1.2)
+    denoise_qc.h(qy_fine)
+    denoise_qc.h(qx_fine)
 
     # === Parent average encoding ===
-    # DO NOT CHANGE!
 
     intensity_msb = intensity_qubits[-1]
     intensity_msb_1 = intensity_qubits[-2] if len(intensity_qubits) > 1 else intensity_msb
@@ -318,107 +313,85 @@ def DENOISER(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, brightness_
     intensity_msb_4 = intensity_qubits[-5] if len(intensity_qubits) > 4 else intensity_msb_3
     intensity_msb_5 = intensity_qubits[-6] if len(intensity_qubits) > 5 else intensity_msb_4
 
-    # Rotate ancilla based on intensity
-    # DO NOT CHANGE!
-    denoise_qc.x(intensity_msb) # not (MSB0.1)
-    denoise_qc.x(intensity_msb_1) # not (MSB1.1)
-    denoise_qc.x(intensity_msb_2) # not (MSB2.1)
-    denoise_qc.x(intensity_msb_3) # not (MSB3.1)
-    denoise_qc.x(intensity_msb_4) # not (MSB4.1)
-    denoise_qc.x(intensity_msb_5) # not (MSB5.1)
+    # Flip MSB bits before rotation
+    denoise_qc.x(intensity_msb)
+    denoise_qc.x(intensity_msb_1)
+    denoise_qc.x(intensity_msb_2)
+    denoise_qc.x(intensity_msb_3)
+    denoise_qc.x(intensity_msb_4)
+    denoise_qc.x(intensity_msb_5)
 
+    # Rotate ancilla proportionally to intensity bits
+    denoise_qc.cry(np.pi / 8, intensity_msb, parent_avg_ancilla)
+    denoise_qc.cry(np.pi / 4, intensity_msb_1, parent_avg_ancilla)
+    denoise_qc.cry(np.pi / 2, intensity_msb_2, parent_avg_ancilla)
+    denoise_qc.cry(np.pi, intensity_msb_3, parent_avg_ancilla)
+    denoise_qc.cry(np.pi * 2, intensity_msb_4, parent_avg_ancilla)
+    denoise_qc.cry(np.pi * 4, intensity_msb_5, parent_avg_ancilla)
 
-    denoise_qc.cry(np.pi / 8, intensity_msb, parent_avg_ancilla) # rotate (MSB0.1)
-    denoise_qc.cry(np.pi / 4, intensity_msb_1, parent_avg_ancilla) # rotate (MSB1.1)
-    denoise_qc.cry(np.pi / 2, intensity_msb_2, parent_avg_ancilla) # rotate (MSB2.1)
-    denoise_qc.cry(np.pi, intensity_msb_3, parent_avg_ancilla) # rotate (MSB3.1)
-    denoise_qc.cry(np.pi * 2, intensity_msb_4, parent_avg_ancilla) # rotate (MSB4.1)
-    denoise_qc.cry(np.pi * 4, intensity_msb_5, parent_avg_ancilla) # rotate (MSB5.1)
-
-    denoise_qc.x(intensity_msb) # not_dag (MSB0.1)
-    denoise_qc.x(intensity_msb_1) # not_dag (MSB1.1)
-    denoise_qc.x(intensity_msb_2) # not_dag (MSB2.1)
-    denoise_qc.x(intensity_msb_3) # not_dag (MSB3.1)
-    denoise_qc.x(intensity_msb_4) # not_dag (MSB4.1)
-    denoise_qc.x(intensity_msb_5) # not_dag (MSB5.1)
+    # Unflip MSB bits
+    denoise_qc.x(intensity_msb)
+    denoise_qc.x(intensity_msb_1)
+    denoise_qc.x(intensity_msb_2)
+    denoise_qc.x(intensity_msb_3)
+    denoise_qc.x(intensity_msb_4)
+    denoise_qc.x(intensity_msb_5)
 
     # === Uncompute sibling superposition ===
-    # DO NOT CHANGE!
-    denoise_qc.h(qx_fine) # superposition_dag (Fine.2.2)
-    denoise_qc.h(qy_fine) # superposition_dag (Fine.2.1)
-
-    # Now parent_avg_ancilla holds information about parent block
-    # And we're back to single pixel state
+    denoise_qc.h(qx_fine)
+    denoise_qc.h(qy_fine)
 
     # === Compare pixel to parent average ===
-    # DO NOT CHANGE!
-    # If pixel intensity matches parent_avg_ancilla → consistent
-    # If different → inconsistent
+    # XNOR logic: consistent if MSB matches parent average
+    denoise_qc.x(parent_avg_ancilla)
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
+    denoise_qc.x(parent_avg_ancilla)
 
-    # Check if MSB matches parent average state
-    # If parent_avg is in |1⟩ and pixel MSB is 1 → match
-    # If parent_avg is in |0⟩ and pixel MSB is 0 → match
-
-    # CNOT from MSB to consistency_ancilla, controlled on parent_avg
-    # This marks matches
-    # DO NOT CHANGE!
-
-    denoise_qc.x(parent_avg_ancilla) # not
-    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot (PARENT.1)
-    denoise_qc.x(parent_avg_ancilla) # not_dag
-
-
-    denoise_qc.x(intensity_msb) # not
-    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot (PARENT.2)
-    denoise_qc.x(parent_avg_ancilla) # not_dag
-    denoise_qc.x(intensity_msb) # not_dag
+    denoise_qc.x(intensity_msb)
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
+    denoise_qc.x(parent_avg_ancilla)
+    denoise_qc.x(intensity_msb)
 
     # === Set bias ===
-    # If consistency_ancilla = 1 → consistent → preserve
-    denoise_qc.x(consistency_ancilla) # not
-    denoise_qc.cx(consistency_ancilla, bias_qubit) #cnot
+    denoise_qc.x(consistency_ancilla)
+    denoise_qc.cx(consistency_ancilla, bias_qubit)
 
     # === Uncompute ===
-    # Uncompute consistency check (XNOR)
-    denoise_qc.x(intensity_msb) # not (MSB0.2)
-    denoise_qc.x(parent_avg_ancilla) # not (PARENT.2)
-    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot_dag (PARENT.2)
-    denoise_qc.x(parent_avg_ancilla) # not_dag (PARENT.2)
-    denoise_qc.x(intensity_msb) # not_dag (MSB0.2)
+    denoise_qc.x(intensity_msb)
+    denoise_qc.x(parent_avg_ancilla)
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
+    denoise_qc.x(parent_avg_ancilla)
+    denoise_qc.x(intensity_msb)
 
-    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot_dag (PARENT.1)
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
 
     # Uncompute parent average encoding
-    denoise_qc.h(qy_fine) # superposition_dag (Fine.2.1)
-    denoise_qc.h(qx_fine) # superposition_dag (Fine.2.2)
+    denoise_qc.h(qy_fine)
+    denoise_qc.h(qx_fine)
 
-    denoise_qc.x(intensity_msb) # not (MSB0.2)
-    denoise_qc.x(intensity_msb_1) # not (MSB1.2)
-    denoise_qc.x(intensity_msb_2) # not (MSB2.2)
-    denoise_qc.x(intensity_msb_3) # not (MSB3.2)
-    denoise_qc.x(intensity_msb_4) # not (MSB4.2)
-    denoise_qc.x(intensity_msb_5) # not (MSB5.2)
+    denoise_qc.x(intensity_msb)
+    denoise_qc.x(intensity_msb_1)
+    denoise_qc.x(intensity_msb_2)
+    denoise_qc.x(intensity_msb_3)
+    denoise_qc.x(intensity_msb_4)
+    denoise_qc.x(intensity_msb_5)
 
-    denoise_qc.cry(-np.pi / 8, intensity_msb, parent_avg_ancilla) # rotate_dag (MSB0.1)
-    denoise_qc.cry(-np.pi / 4, intensity_msb_1, parent_avg_ancilla) # rotate_dag (MSB1.1)
-    denoise_qc.cry(-np.pi / 2, intensity_msb_2, parent_avg_ancilla) # rotate_dag (MSB2.1)
-    denoise_qc.cry(-np.pi, intensity_msb_3, parent_avg_ancilla) # rotate_dag (MSB3.1)
-    denoise_qc.cry(-np.pi * 2, intensity_msb_4, parent_avg_ancilla) # rotate_dag (MSB4.1)
-    denoise_qc.cry(-np.pi * 4, intensity_msb_5, parent_avg_ancilla) # rotate_dag (MSB5.1)
+    denoise_qc.cry(-np.pi / 8, intensity_msb, parent_avg_ancilla)
+    denoise_qc.cry(-np.pi / 4, intensity_msb_1, parent_avg_ancilla)
+    denoise_qc.cry(-np.pi / 2, intensity_msb_2, parent_avg_ancilla)
+    denoise_qc.cry(-np.pi, intensity_msb_3, parent_avg_ancilla)
+    denoise_qc.cry(-np.pi * 2, intensity_msb_4, parent_avg_ancilla)
+    denoise_qc.cry(-np.pi * 4, intensity_msb_5, parent_avg_ancilla)
 
-    denoise_qc.x(intensity_msb) # not_dag (MSB0.2)
-    denoise_qc.x(intensity_msb_1) # not_dag (MSB1.2)
-    denoise_qc.x(intensity_msb_2) # not_dag (MSB2.2)
-    denoise_qc.x(intensity_msb_3) # not_dag (MSB3.2)
-    denoise_qc.x(intensity_msb_4) # not_dag (MSB4.2)
-    denoise_qc.x(intensity_msb_5) # not_dag (MSB5.2)
+    denoise_qc.x(intensity_msb)
+    denoise_qc.x(intensity_msb_1)
+    denoise_qc.x(intensity_msb_2)
+    denoise_qc.x(intensity_msb_3)
+    denoise_qc.x(intensity_msb_4)
+    denoise_qc.x(intensity_msb_5)
 
-    denoise_qc.h(qx_fine) # superposition_dag (Fine.1.2)
-    denoise_qc.h(qy_fine) # superposition_dag (Fine.1.1)
-
-
-
-    #denoise_qc.ry(np.pi/8, bias_qubit) # rotate_dag (Bias)
+    denoise_qc.h(qx_fine)
+    denoise_qc.h(qy_fine)
 
     # === Brightness shift (add back after denoise) ===
     if brightness_shift != 0:
@@ -429,14 +402,17 @@ def DENOISER(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, brightness_
     return qc
 
 
-def ACCIDENT_DISCOVERY(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, ):
+def ACCIDENT_DISCOVERY(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None):
+    """
+    Experimental denoising circuit variant using 4-bit (MSB) intensity encoding.
+    
+    Note: This circuit exhibits quantizer-like behavior - investigating as
+    potential basis-to-angle transcoder.
+    """
     denoise_qc = QuantumCircuit(*qc.qregs)
     num_levels = len(pos_regs) // 2
 
-    #========================================
-    # Ancilla allocation
-    #========================================
-
+    # === Ancilla allocation ===
     work_qubits = []
     for r in denoise_qc.qregs:
         if r.name == 'work':
@@ -444,7 +420,6 @@ def ACCIDENT_DISCOVERY(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, )
             break
 
     if len(work_qubits) < 2 or bias is None:
-        print("WARNING: Insufficient ancillas")
         return qc
 
     parent_avg_ancilla = work_qubits[0]
@@ -452,15 +427,11 @@ def ACCIDENT_DISCOVERY(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, )
     bias_qubit = bias[0]
     intensity_qubits = list(intensity_reg)
 
-    # ==========================================
-    # CHECK FINEST LEVEL VS PARENT
-    # ==========================================
-
+    # === Check finest level vs parent ===
     finest_level = num_levels - 1
 
     if finest_level == 0:
         denoise_qc.x(bias_qubit)
-        print(denoise_qc.draw(output='text'))
         qc.compose(denoise_qc, inplace=True)
         return qc
 
@@ -468,106 +439,58 @@ def ACCIDENT_DISCOVERY(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, )
     qx_fine = pos_regs[2 * finest_level + 1][0]
 
     # === Sibling superposition ===
-    # DO NOT CHANGE!
-    denoise_qc.h(qy_fine) # superposition (Fine.1.1)
-    denoise_qc.h(qx_fine) # superposition (Fine.1.2)
+    denoise_qc.h(qy_fine)
+    denoise_qc.h(qx_fine)
 
-    # === Parent average encoding ===
-    # DO NOT CHANGE!
-
+    # === Parent average encoding (4 MSB only) ===
     intensity_msb = intensity_qubits[-1]
     intensity_msb_1 = intensity_qubits[-2] if len(intensity_qubits) > 1 else intensity_msb
     intensity_msb_2 = intensity_qubits[-3] if len(intensity_qubits) > 2 else intensity_msb_1
     intensity_msb_3 = intensity_qubits[-4] if len(intensity_qubits) > 3 else intensity_msb_2
 
-    # Rotate ancilla based on intensity
-    # DO NOT CHANGE!
-    # denoise_qc.x(intensity_msb) # not (MSB0.1)
-    # denoise_qc.x(intensity_msb_1) # not (MSB1.1)
-    # denoise_qc.x(intensity_msb_2) # not (MSB2.1)
-    # denoise_qc.x(intensity_msb_3) # not (MSB3.1)
-
-
-    denoise_qc.cry(np.pi / 8, intensity_msb, parent_avg_ancilla) # rotate (MSB0.1)
-    denoise_qc.cry(np.pi / 4, intensity_msb_1, parent_avg_ancilla) # rotate (MSB1.1)
-    denoise_qc.cry(np.pi / 2, intensity_msb_2, parent_avg_ancilla) # rotate (MSB2.1)
-    denoise_qc.cry(np.pi, intensity_msb_3, parent_avg_ancilla) # rotate (MSB3.1)
-
-    # denoise_qc.x(intensity_msb) # not_dag (MSB0.1)
-    # denoise_qc.x(intensity_msb_1) # not_dag (MSB1.1)
-    # denoise_qc.x(intensity_msb_2) # not_dag (MSB2.1)
-    # denoise_qc.x(intensity_msb_3) # not_dag (MSB3.1)
+    # Rotate ancilla proportionally to intensity bits
+    denoise_qc.cry(np.pi / 8, intensity_msb, parent_avg_ancilla)
+    denoise_qc.cry(np.pi / 4, intensity_msb_1, parent_avg_ancilla)
+    denoise_qc.cry(np.pi / 2, intensity_msb_2, parent_avg_ancilla)
+    denoise_qc.cry(np.pi, intensity_msb_3, parent_avg_ancilla)
 
     # === Uncompute sibling superposition ===
-    # DO NOT CHANGE!
-    denoise_qc.h(qx_fine) # superposition_dag (Fine.2.2)
-    denoise_qc.h(qy_fine) # superposition_dag (Fine.2.1)
-
-    # Now parent_avg_ancilla holds information about parent block
-    # And we're back to single pixel state
+    denoise_qc.h(qx_fine)
+    denoise_qc.h(qy_fine)
 
     # === Compare pixel to parent average ===
-    # DO NOT CHANGE!
-    # If pixel intensity matches parent_avg_ancilla → consistent
-    # If different → inconsistent
+    denoise_qc.x(parent_avg_ancilla)
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
+    denoise_qc.x(parent_avg_ancilla)
 
-    # Check if MSB matches parent average state
-    # If parent_avg is in |1⟩ and pixel MSB is 1 → match
-    # If parent_avg is in |0⟩ and pixel MSB is 0 → match
-
-    # CNOT from MSB to consistency_ancilla, controlled on parent_avg
-    # This marks matches
-    # DO NOT CHANGE!
-
-    denoise_qc.x(parent_avg_ancilla) # not
-    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot (PARENT.1)
-    denoise_qc.x(parent_avg_ancilla) # not_dag
-
-
-    denoise_qc.x(intensity_msb) # not
-    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot (PARENT.2)
-    denoise_qc.x(parent_avg_ancilla) # not_dag
-    denoise_qc.x(intensity_msb) # not_dag
+    denoise_qc.x(intensity_msb)
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
+    denoise_qc.x(parent_avg_ancilla)
+    denoise_qc.x(intensity_msb)
 
     # === Set bias ===
-    # If consistency_ancilla = 1 → consistent → preserve
-    denoise_qc.cx(consistency_ancilla, bias_qubit) #cnot
+    denoise_qc.cx(consistency_ancilla, bias_qubit)
 
     # === Uncompute ===
-    # Uncompute consistency check (XNOR)
-    denoise_qc.x(intensity_msb) # not (MSB0.2)
-    denoise_qc.x(parent_avg_ancilla) # not (PARENT.2)
-    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot_dag (PARENT.2)
-    denoise_qc.x(parent_avg_ancilla) # not_dag (PARENT.2)
-    denoise_qc.x(intensity_msb) # not_dag (MSB0.2)
+    denoise_qc.x(intensity_msb)
+    denoise_qc.x(parent_avg_ancilla)
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
+    denoise_qc.x(parent_avg_ancilla)
+    denoise_qc.x(intensity_msb)
 
-    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot_dag (PARENT.1)
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
 
     # Uncompute parent average encoding
-    denoise_qc.h(qy_fine) # superposition_dag (Fine.2.1)
-    denoise_qc.h(qx_fine) # superposition_dag (Fine.2.2)
+    denoise_qc.h(qy_fine)
+    denoise_qc.h(qx_fine)
 
-    # denoise_qc.x(intensity_msb) # not (MSB0.2)
-    # denoise_qc.x(intensity_msb_1) # not (MSB1.2)
-    # denoise_qc.x(intensity_msb_2) # not (MSB2.2)
-    # denoise_qc.x(intensity_msb_3) # not (MSB3.2)
+    denoise_qc.cry(-np.pi / 8, intensity_msb, parent_avg_ancilla)
+    denoise_qc.cry(-np.pi / 4, intensity_msb_1, parent_avg_ancilla)
+    denoise_qc.cry(-np.pi / 2, intensity_msb_2, parent_avg_ancilla)
+    denoise_qc.cry(-np.pi, intensity_msb_3, parent_avg_ancilla)
 
-
-    denoise_qc.cry(-np.pi / 8, intensity_msb, parent_avg_ancilla) # rotate_dag (MSB0.1)
-    denoise_qc.cry(-np.pi / 4, intensity_msb_1, parent_avg_ancilla) # rotate_dag (MSB1.1)
-    denoise_qc.cry(-np.pi / 2, intensity_msb_2, parent_avg_ancilla) # rotate_dag (MSB2.1)
-    denoise_qc.cry(-np.pi, intensity_msb_3, parent_avg_ancilla) # rotate_dag (MSB3.1)
-
-    # denoise_qc.x(intensity_msb) # not_dag (MSB0.2)
-    # denoise_qc.x(intensity_msb_1) # not_dag (MSB1.2)
-    # denoise_qc.x(intensity_msb_2) # not_dag (MSB2.2)
-    # denoise_qc.x(intensity_msb_3) # not_dag (MSB3.2)
-
-    denoise_qc.h(qx_fine) # superposition_dag (Fine.1.2)
-    denoise_qc.h(qy_fine) # superposition_dag (Fine.1.1)
-
-    # NOTE: This circuit behaves as a Computational Basis State 8bit to 4bit quantizer
-    #       and potentially as a Basis-to-Angle Encoding converter/transcoder.
+    denoise_qc.h(qx_fine)
+    denoise_qc.h(qy_fine)
 
     qc.compose(denoise_qc, inplace=True)
 

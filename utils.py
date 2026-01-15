@@ -15,9 +15,9 @@ import numpy as np
 
 
 def angle_map(img, bit_depth=8):
-    max_val = (1 << bit_depth) - 1  # 255
+    max_val = (1 << bit_depth) - 1
     u = np.clip(img.astype(np.float64) / max_val, 0.0, 1.0)
-    theta = 2.0*np.arcsin(np.sqrt(u))       #RY(theta) to  psi = theta/2
+    theta = 2.0 * np.arcsin(np.sqrt(u))
     return theta
 
 def get_Lmax(N,d):
@@ -107,7 +107,6 @@ def mhrqi_bins_to_image(bins, hierarchy_matrix, d, image_shape, bias_stats=None,
                 if dr == 0 and dc == 0: continue
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < N and 0 <= nc < N:
-                    # CHANGE: Check neighbor confidence before using
                     if confidence_map[nr, nc] <= CONFIDENCE_THRESHOLD:
                         trusted_neighbor_vals.append(source_img[nr, nc])
 

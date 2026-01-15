@@ -13,6 +13,10 @@
 - [Encoder Guide](encoder_guide.md) - How images are encoded
 - [Benchmarking](benchmarking.md) - Metrics and comparison methodology
 
+### API Reference
+- [circuit.py Reference](circuit_reference.md) - Circuit construction and simulation
+- [utils.py Reference](utils_reference.md) - Encoding and reconstruction utilities
+
 ---
 
 ## What is MHRQI?
