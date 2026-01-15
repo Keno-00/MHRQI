@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  MHRQI - Magnitude Hierarchical Representation of Quantum Images            ║
+║  MHRQI - Magnitude Hierarchical Representation of Quantum Images             ║
 ║  Qiskit Implementation                                                       ║
 ║                                                                              ║
 ║  Author: Keno-00                                                             ║
@@ -8,17 +8,17 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, transpile
-from qiskit_aer import Aer, AerSimulator
-
-from qiskit.circuit.library import MCXGate
-from qiskit_aer.library import SetStatevector
-import numpy as np
 import itertools  # Added for dynamic parent state generation
-import utils
+import random  # TODO: Remove if confirmed unused after testing
 from collections import defaultdict
-import random
 
+import numpy as np
+from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister, transpile
+from qiskit.circuit.library import MCXGate
+from qiskit_aer import Aer, AerSimulator
+from qiskit_aer.library import SetStatevector
+
+import utils
 
 
 # -------------------------
@@ -49,15 +49,15 @@ def apply_multi_controlled_ry(qc, controls, ctrl_states, target, ancilla_for_and
             # Single control: use controlled RY directly
             qc.cry(angle, controls[0], target)
             return
-        
+
         qc.reset(ancilla_for_and)
-        
+
         qc.mcx(controls, ancilla_for_and)
         qc.cry(angle, ancilla_for_and, target)
         qc.mcx(controls, ancilla_for_and)  # Uncompute
-        
+
         qc.reset(ancilla_for_and)
-        
+
     finally:
         _restore_controls(qc, controls, ctrl_states)
 
@@ -87,56 +87,32 @@ def MHRQI_init(d, L_max, bit_depth=8):
         bias_qubit: single bias qubit for denoising
     """
     pos_qubits = []
-    
+
     # Position qubits (2 per level: y and x)
     for k in range(L_max):
         pos_qubits.append(QuantumRegister(1, f"q_y_{k}"))
         pos_qubits.append(QuantumRegister(1, f"q_x_{k}"))
-    
+
     # Intensity qubits (basis-encoded grayscale)
     intensity = QuantumRegister(bit_depth, 'intensity')
-    
+
     # Bias qubit for denoising (hit/miss weighting)
     bias = QuantumRegister(1, 'bias')
-    
-    # Ancilla for multi-controlled operations
-    and_ancilla = QuantumRegister(1, 'and_ancilla')
-    
-    # Work qubits for gradient computation
+
+    # Work qubits for gradient computation and multi-controlled operations
+    # work[0] is used as and_ancilla during upload
     work = QuantumRegister(2, 'work')
-    
-    qc = QuantumCircuit(*pos_qubits, intensity, bias, and_ancilla, work)
-    
+
+    qc = QuantumCircuit(*pos_qubits, intensity, bias, work)
+
     # Initialize position qubits in uniform superposition
     for reg in pos_qubits:
         qc.h(reg[0])
-    
+
     # Bias qubit starts in |0⟩ (marked during denoising)
-    
+
     return qc, pos_qubits, intensity, bias
 
-def MHRQI_upload_intensity_qiskit(qc: QuantumCircuit, pos_regs, intensity_reg, d, hierarchy_matrix, img):
-    """
-    Upload intensity values by rotating the intensity ancilla conditioned on the position control states.
-    """
-    controls = [reg[0] for reg in pos_regs]
-    intensity_qubit = intensity_reg[0]
-    work_qubits = []
-
-    and_ancilla = None
-    for r in qc.qregs:
-        if r.name == 'and_ancilla':
-            and_ancilla = r[0]
-            break
-
-    for vec in hierarchy_matrix:
-        ctrl_states = list(vec)
-        r, c = utils.compose_rc(vec, d)
-        theta = float(img[r, c])
-
-        apply_multi_controlled_ry(qc, controls, ctrl_states, intensity_qubit, and_ancilla, work_qubits, theta)
-
-    return qc
 
 def MHRQI_upload(qc: QuantumCircuit, pos_regs, intensity_reg, d, hierarchy_matrix, img):
     """
@@ -154,323 +130,448 @@ def MHRQI_upload(qc: QuantumCircuit, pos_regs, intensity_reg, d, hierarchy_matri
     controls = [reg[0] for reg in pos_regs]
     intensity_qubits = list(intensity_reg)
     bit_depth = len(intensity_qubits)
-    
-    # Get ancilla
+
+    # Get work register for ancilla
     and_ancilla = None
     for r in qc.qregs:
-        if r.name == 'and_ancilla':
+        if r.name == 'work':
             and_ancilla = r[0]
             break
-    
+
     # For each pixel position
     for vec in hierarchy_matrix:
         ctrl_states = list(vec)
         r, c = utils.compose_rc(vec, d)
-        
+
         # Get pixel intensity and convert to integer (0-255)
         pixel_value = float(img[r, c])
         # Assuming img is normalized to [0, 1], scale to [0, 2^bit_depth - 1]
         intensity_int = int(pixel_value * (2**bit_depth - 1))
-        
+
         # Convert intensity to binary representation
         intensity_bits = format(intensity_int, f'0{bit_depth}b')
-        
+
         # Apply X gates to set intensity qubits based on binary representation
         _prepare_controls_on_states(qc, controls, ctrl_states)
-        
+
         if len(controls) > 0:
             # Multi-controlled operations for each intensity bit
             qc.mcx(controls, and_ancilla)
-            
+
             for bit_idx, bit_val in enumerate(intensity_bits):
                 if bit_val == '1':
                     qc.cx(and_ancilla, intensity_qubits[bit_idx])
-            
+
             qc.mcx(controls, and_ancilla)
         else:
             # No position control needed
             for bit_idx, bit_val in enumerate(intensity_bits):
                 if bit_val == '1':
                     qc.x(intensity_qubits[bit_idx])
-        
+
         _restore_controls(qc, controls, ctrl_states)
-    
+
     return qc
 
 # -------------------------
 # Lazy Upload (Faster)
 # -------------------------
 
-def MHRQI_lazy_upload_intensity_qiskit(qc: QuantumCircuit, pos_regs, intensity_reg, d, hierarchy_matrix, img):
-    """
-    Upload intensity values by directly defining the statevector. Possibly applied with only one custom gate
-    """
-    qubit_to_idx = {q: i for i, q in enumerate(qc.qubits)}
-    pos_indices = [qubit_to_idx[reg[0]] for reg in pos_regs]
-    intensity_idx = qubit_to_idx[intensity_reg[0]]
-    
-    num_qubits = qc.num_qubits
-    dim = 2 ** num_qubits
-    
-    state = np.zeros(dim, dtype=complex)
-    
-    num_pos = 2 ** len(pos_indices)
-    norm = 1.0 / np.sqrt(num_pos)
-    
-    is_sequential = all(pos_indices[i] == i for i in range(len(pos_indices)))
-    
-    if is_sequential:
-        state[0:num_pos] = norm
-        
-        intensity_stride = 2**intensity_idx
-        
-        for vec in hierarchy_matrix:
-            p = 0
-            for i, val in enumerate(vec):
-                if val:
-                    p |= (1 << i)
-            
-            r, c = utils.compose_rc(vec, d)
-            theta = float(img[r, c])
-            
-            state[p] = norm * np.cos(theta / 2.0)
-            state[p + intensity_stride] = norm * np.sin(theta / 2.0)
-            
-    else:
-        print("Warning: Qubits not sequential, lazy upload might be incorrect or currently skipped.")
-        return MHRQI_upload_intensity_qiskit(qc, pos_regs, intensity_reg, d, hierarchy_matrix, img)
-
-    qc.append(SetStatevector(state), qc.qubits)
-    return qc
 
 def MHRQI_lazy_upload(qc: QuantumCircuit, pos_regs, intensity_reg, d, hierarchy_matrix, img):
     """
     Fast MHRQI(basis) upload using direct statevector initialization.
-    ADDITIONALLY: Encodes local gradient as phase for edge detection.
-    
-    Gradient is computed classically (Sobel) and embedded in phase:
-    - High gradient (edge) → phase ≈ π
-    - Low gradient (flat) → phase ≈ 0
-    
-    This allows the denoiser to detect edges through phase interference.
     """
-    from scipy import ndimage
-    
+    # finalized! dont change!
     qubit_to_idx = {q: i for i, q in enumerate(qc.qubits)}
     pos_indices = [qubit_to_idx[reg[0]] for reg in pos_regs]
     intensity_indices = [qubit_to_idx[q] for q in intensity_reg]
-    
     num_qubits = qc.num_qubits
     dim = 2 ** num_qubits
     bit_depth = len(intensity_indices)
-    
     state = np.zeros(dim, dtype=complex)
-    
     num_pos = 2 ** len(pos_indices)
-    norm = 1.0 / np.sqrt(num_pos)
-    
-    # Compute gradient map for phase encoding
-    N = int(np.sqrt(len(hierarchy_matrix)))
-    img_2d = np.zeros((N, N))
-    for vec in hierarchy_matrix:
-        r, c = utils.compose_rc(vec, d)
-        if 0 <= r < N and 0 <= c < N:
-            img_2d[r, c] = float(img[r, c])
-    
-    # MULTI-SCALE GRADIENT DETECTION
-    # Blur first to ignore high-frequency noise, then detect structure gradients
-    # sigma controls scale: larger = catches broader gradients, ignores fine noise
-    sigma = 1.5  # Gaussian blur radius
-    blurred = ndimage.gaussian_filter(img_2d, sigma=sigma)
-    
-    # Sobel on blurred image - detects structure gradients, not noise
-    grad_x = ndimage.sobel(blurred, axis=1)
-    grad_y = ndimage.sobel(blurred, axis=0)
-    gradient_map = np.sqrt(grad_x**2 + grad_y**2)
-    
-    # Normalize gradient to [0, 1]
-    grad_max = gradient_map.max() if gradient_map.max() > 0 else 1.0
-    gradient_map = gradient_map / grad_max
-    
-    # Check if position and intensity qubits are sequential
     all_indices = pos_indices + intensity_indices
     is_sequential = all(all_indices[i] == i for i in range(len(all_indices)))
-    
     if is_sequential:
-        # Fast path: sequential qubit layout
         for vec in hierarchy_matrix:
-            # Calculate position index
             p = 0
             for i, val in enumerate(vec):
                 if val:
                     p |= (1 << i)
-            
             r, c = utils.compose_rc(vec, d)
             pixel_value = float(img[r, c])
             intensity_int = int(pixel_value * (2**bit_depth - 1))
-            
-            # Get gradient for amplitude weighting
-            # INTERPRETATION (matching utils.py):
-            #   HIGH probability = noisy/uniform = flatten
-            #   LOW probability = edge = preserve
-            gradient = gradient_map[r, c] if 0 <= r < N and 0 <= c < N else 0.0
-            
-            # STRONGER contrast: edges get much lower amplitude
-            # Range [0.1, 1.0] - edges nearly 10x lower than flat regions
-            edge_weight = 1.0 - 0.9 * gradient  # Flat=1.0, Strong edge=0.1
-            
-            # Base index for this position
             base_idx = p
-            
-            # Set intensity bits
             intensity_offset = 0
             for bit_idx in range(bit_depth):
                 if (intensity_int >> bit_idx) & 1:
                     intensity_offset |= (1 << (len(pos_indices) + bit_idx))
-            
-            # Apply amplitude weighted by gradient (not just phase)
-            state[base_idx + intensity_offset] = edge_weight
+            state[base_idx + intensity_offset] = 1.0
     else:
-        print("Warning: Qubits not sequential, falling back to gate-based upload.")
+        print("Warn: Qubits not sequential, falling back to gate-based upload.")
         return MHRQI_upload(qc, pos_regs, intensity_reg, d, hierarchy_matrix, img)
-    
-    # Normalize state (required for valid quantum state)
     state_norm = np.linalg.norm(state)
     if state_norm > 0:
         state = state / state_norm
-    
     qc.append(SetStatevector(state), qc.qubits)
     return qc
 
 
-def DENOISER(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, strength=0.5, method='bias'):
+def _adjust_brightness(qc, intensity_reg, k):
     """
-    Unified MHRQI denoiser using bias qubit for hit/miss weighting.
+    Add constant k to intensity register (reversible).
+    To subtract, pass negative k (uses two's complement internally).
     
-    Based on: docs/knowledge/denoiser_guide.md, docs/knowledge/sibling_smoothing.md
-    
-    Bias Qubit Algorithm:
-    1. Initialize bias qubit in superposition (H)
-    2. For each hierarchy level k:
-       a. Create neighbor superposition (H on position qubits)
-       b. Compute gradient parity via XOR of intensity bits
-       c. Phase mark bias qubit if at edge (CZ)
-       d. Uncompute gradient and position superposition
-    3. Measure: position + intensity + bias
-    
-    Reconstruction uses: hits / (hits + misses) where hit = bias measured |1⟩
+    This is a simplified constant adder using XOR cascades.
+    For brightness shift: subtract before denoise, add after.
     
     Args:
-        qc: QuantumCircuit with MHRQI-encoded image
-        pos_regs: Position qubit registers  
-        intensity_reg: Intensity qubit register
-        bias: Bias qubit for hit/miss weighting
-        strength: Marking intensity in [0, 1]
-        method: 'bias' (bias qubit marking) or 'uniform' (simple averaging)
-    
-    Returns:
-        qc: Circuit with denoising operations applied
-    
-    Seam Theory: Phase marking + diffusion at each level couples sibling blocks,
-    ensuring cross-boundary information flow via quantum interference.
+        qc: QuantumCircuit to apply gates to
+        intensity_reg: intensity qubit register
+        k: constant to add (negative to subtract)
     """
+    n = len(list(intensity_reg))
+    intensity_qubits = list(intensity_reg)
+
+    # Handle negative k via two's complement
+    if k < 0:
+        k = ((~(-k)) + 1) & ((1 << n) - 1)
+    else:
+        k = k & ((1 << n) - 1)
+
+    if k == 0:
+        return
+
+    # Simplified constant addition using carry propagation
+    # For each bit position where k has a 1, we need to flip and propagate carry
+    # Using ripple-carry style: X on bit i, then MCX for carry propagation
+
+    for i in range(n):
+        if (k >> i) & 1:
+            # Add 1 at position i
+            if i == 0:
+                qc.x(intensity_qubits[0])
+            else:
+                # Flip bit i, propagate carry from lower bits
+                # Carry in = all lower bits that were 1 before flip will generate carry
+                # Simplified: just flip current bit, MCX from all lower to current
+                controls = intensity_qubits[:i]
+                qc.mcx(controls, intensity_qubits[i])
+                # Then flip bit i unconditionally
+                qc.x(intensity_qubits[i])
+
+
+def DENOISER(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, brightness_shift=10):
+    denoise_qc = QuantumCircuit(*qc.qregs)
     num_levels = len(pos_regs) // 2
-    
-    # Fallback if no bias qubit provided
-    if bias is None or method == 'uniform':
-        return _uniform_averaging(qc, pos_regs, intensity_reg, strength, num_levels)
-    
-    # Get work qubits for gradient computation
+
+    #========================================
+    # Ancilla allocation
+    #========================================
+
     work_qubits = []
-    for r in qc.qregs:
+    for r in denoise_qc.qregs:
         if r.name == 'work':
             work_qubits = list(r)
             break
-    
-    if len(work_qubits) < 1:
-        return _uniform_averaging(qc, pos_regs, intensity_reg, strength, num_levels)
-    
-    # Work qubits for oracle computation
-    shift_qubit = work_qubits[0]    # Position shift qubit
-    grad_qubit = work_qubits[1]      # Gradient accumulator
+
+    if len(work_qubits) < 2 or bias is None:
+        print("WARNING: Insufficient ancillas")
+        return qc
+
+    parent_avg_ancilla = work_qubits[0]
+    consistency_ancilla = work_qubits[1]
     bias_qubit = bias[0]
-    
-    # =========================================
-    # HYBRID DENOISER: Phase Encoding + Unitary Diffusion
-    # =========================================
-    # Mathematical foundation (from analysis):
-    # 
-    # LIMITATION: Cannot compute I_p - I_p' coherently with single intensity
-    # register because intensity is entangled with position:
-    #   |Ψ⟩ = (1/√N) Σ_p |p⟩ ⊗ |I_p⟩
-    #
-    # SOLUTION: Classical gradient is encoded as PHASE in lazy_upload:
-    #   amplitude_p = norm * exp(i * phase_p)
-    #   where phase_p = gradient(p) * π
-    #
-    # This circuit applies UNITARY DIFFUSION (no resets!) to:
-    # - Create interference between positions (H gates)
-    # - Amplify positions with similar phases (flat regions)
-    # - Dampen positions with different phases (edges)
-    #
-    # The Grover diffusion G = 2|ψ₀⟩⟨ψ₀| - I reflects about mean,
-    # pushing amplitudes toward consensus within each hierarchical block.
-    
-    diffusion_strength = strength * np.pi / 4  # Scale to reasonable range
-    
-    # Apply Grover-like diffusion at each hierarchical level
-    # Coarse levels: larger blocks, weaker smoothing
-    # Fine levels: smaller blocks, stronger smoothing
-    for k in range(num_levels):
-        qy = pos_regs[2 * k][0]
-        qx = pos_regs[2 * k + 1][0]
-        
-        # Level-dependent diffusion weight (finer = stronger)
-        level_weight = (k + 1) / num_levels  # 0.17 to 1.0 for 6 levels
-        angle = diffusion_strength * level_weight
-        
-        # ========== PARTIAL GROVER DIFFUSION ==========
-        # H⊗H → X⊗X → CP(angle) → X⊗X → H⊗H
-        # Full Grover uses CZ (angle=π), we use partial for tunable smoothing
-        
-        qc.h(qy)
-        qc.h(qx)
-        qc.x(qy)
-        qc.x(qx)
-        qc.cp(angle, qy, qx)  # Partial phase flip
-        qc.x(qy)
-        qc.x(qx)
-        qc.h(qy)
-        qc.h(qx)
-    
-    # Bias qubit: mark based on intensity MSB for reconstruction weighting
-    intensity_msb = intensity_reg[-1]
-    qc.cry(np.pi / 4, intensity_msb, bias_qubit)
-    
+    intensity_qubits = list(intensity_reg)
+
+    # ==========================================
+    # CHECK FINEST LEVEL VS PARENT
+    # ==========================================
+
+    finest_level = num_levels - 1
+
+    if finest_level == 0:
+        denoise_qc.x(bias_qubit)
+        qc.compose(denoise_qc, inplace=True)
+        return qc
+
+    qy_fine = pos_regs[2 * finest_level][0]
+    qx_fine = pos_regs[2 * finest_level + 1][0]
+
+    # === Brightness shift (subtract before denoise) ===
+    if brightness_shift != 0:
+        _adjust_brightness(denoise_qc, intensity_reg, -brightness_shift)
+
+    # === Sibling superposition ===
+    # DO NOT CHANGE!
+    denoise_qc.h(qy_fine) # superposition (Fine.1.1)
+    denoise_qc.h(qx_fine) # superposition (Fine.1.2)
+
+    # === Parent average encoding ===
+    # DO NOT CHANGE!
+
+    intensity_msb = intensity_qubits[-1]
+    intensity_msb_1 = intensity_qubits[-2] if len(intensity_qubits) > 1 else intensity_msb
+    intensity_msb_2 = intensity_qubits[-3] if len(intensity_qubits) > 2 else intensity_msb_1
+    intensity_msb_3 = intensity_qubits[-4] if len(intensity_qubits) > 3 else intensity_msb_2
+    intensity_msb_4 = intensity_qubits[-5] if len(intensity_qubits) > 4 else intensity_msb_3
+    intensity_msb_5 = intensity_qubits[-6] if len(intensity_qubits) > 5 else intensity_msb_4
+
+    # Rotate ancilla based on intensity
+    # DO NOT CHANGE!
+    denoise_qc.x(intensity_msb) # not (MSB0.1)
+    denoise_qc.x(intensity_msb_1) # not (MSB1.1)
+    denoise_qc.x(intensity_msb_2) # not (MSB2.1)
+    denoise_qc.x(intensity_msb_3) # not (MSB3.1)
+    denoise_qc.x(intensity_msb_4) # not (MSB4.1)
+    denoise_qc.x(intensity_msb_5) # not (MSB5.1)
+
+
+    denoise_qc.cry(np.pi / 8, intensity_msb, parent_avg_ancilla) # rotate (MSB0.1)
+    denoise_qc.cry(np.pi / 4, intensity_msb_1, parent_avg_ancilla) # rotate (MSB1.1)
+    denoise_qc.cry(np.pi / 2, intensity_msb_2, parent_avg_ancilla) # rotate (MSB2.1)
+    denoise_qc.cry(np.pi, intensity_msb_3, parent_avg_ancilla) # rotate (MSB3.1)
+    denoise_qc.cry(np.pi * 2, intensity_msb_4, parent_avg_ancilla) # rotate (MSB4.1)
+    denoise_qc.cry(np.pi * 4, intensity_msb_5, parent_avg_ancilla) # rotate (MSB5.1)
+
+    denoise_qc.x(intensity_msb) # not_dag (MSB0.1)
+    denoise_qc.x(intensity_msb_1) # not_dag (MSB1.1)
+    denoise_qc.x(intensity_msb_2) # not_dag (MSB2.1)
+    denoise_qc.x(intensity_msb_3) # not_dag (MSB3.1)
+    denoise_qc.x(intensity_msb_4) # not_dag (MSB4.1)
+    denoise_qc.x(intensity_msb_5) # not_dag (MSB5.1)
+
+    # === Uncompute sibling superposition ===
+    # DO NOT CHANGE!
+    denoise_qc.h(qx_fine) # superposition_dag (Fine.2.2)
+    denoise_qc.h(qy_fine) # superposition_dag (Fine.2.1)
+
+    # Now parent_avg_ancilla holds information about parent block
+    # And we're back to single pixel state
+
+    # === Compare pixel to parent average ===
+    # DO NOT CHANGE!
+    # If pixel intensity matches parent_avg_ancilla → consistent
+    # If different → inconsistent
+
+    # Check if MSB matches parent average state
+    # If parent_avg is in |1⟩ and pixel MSB is 1 → match
+    # If parent_avg is in |0⟩ and pixel MSB is 0 → match
+
+    # CNOT from MSB to consistency_ancilla, controlled on parent_avg
+    # This marks matches
+    # DO NOT CHANGE!
+
+    denoise_qc.x(parent_avg_ancilla) # not
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot (PARENT.1)
+    denoise_qc.x(parent_avg_ancilla) # not_dag
+
+
+    denoise_qc.x(intensity_msb) # not
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot (PARENT.2)
+    denoise_qc.x(parent_avg_ancilla) # not_dag
+    denoise_qc.x(intensity_msb) # not_dag
+
+    # === Set bias ===
+    # If consistency_ancilla = 1 → consistent → preserve
+    denoise_qc.x(consistency_ancilla) # not
+    denoise_qc.cx(consistency_ancilla, bias_qubit) #cnot
+
+    # === Uncompute ===
+    # Uncompute consistency check (XNOR)
+    denoise_qc.x(intensity_msb) # not (MSB0.2)
+    denoise_qc.x(parent_avg_ancilla) # not (PARENT.2)
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot_dag (PARENT.2)
+    denoise_qc.x(parent_avg_ancilla) # not_dag (PARENT.2)
+    denoise_qc.x(intensity_msb) # not_dag (MSB0.2)
+
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot_dag (PARENT.1)
+
+    # Uncompute parent average encoding
+    denoise_qc.h(qy_fine) # superposition_dag (Fine.2.1)
+    denoise_qc.h(qx_fine) # superposition_dag (Fine.2.2)
+
+    denoise_qc.x(intensity_msb) # not (MSB0.2)
+    denoise_qc.x(intensity_msb_1) # not (MSB1.2)
+    denoise_qc.x(intensity_msb_2) # not (MSB2.2)
+    denoise_qc.x(intensity_msb_3) # not (MSB3.2)
+    denoise_qc.x(intensity_msb_4) # not (MSB4.2)
+    denoise_qc.x(intensity_msb_5) # not (MSB5.2)
+
+    denoise_qc.cry(-np.pi / 8, intensity_msb, parent_avg_ancilla) # rotate_dag (MSB0.1)
+    denoise_qc.cry(-np.pi / 4, intensity_msb_1, parent_avg_ancilla) # rotate_dag (MSB1.1)
+    denoise_qc.cry(-np.pi / 2, intensity_msb_2, parent_avg_ancilla) # rotate_dag (MSB2.1)
+    denoise_qc.cry(-np.pi, intensity_msb_3, parent_avg_ancilla) # rotate_dag (MSB3.1)
+    denoise_qc.cry(-np.pi * 2, intensity_msb_4, parent_avg_ancilla) # rotate_dag (MSB4.1)
+    denoise_qc.cry(-np.pi * 4, intensity_msb_5, parent_avg_ancilla) # rotate_dag (MSB5.1)
+
+    denoise_qc.x(intensity_msb) # not_dag (MSB0.2)
+    denoise_qc.x(intensity_msb_1) # not_dag (MSB1.2)
+    denoise_qc.x(intensity_msb_2) # not_dag (MSB2.2)
+    denoise_qc.x(intensity_msb_3) # not_dag (MSB3.2)
+    denoise_qc.x(intensity_msb_4) # not_dag (MSB4.2)
+    denoise_qc.x(intensity_msb_5) # not_dag (MSB5.2)
+
+    denoise_qc.h(qx_fine) # superposition_dag (Fine.1.2)
+    denoise_qc.h(qy_fine) # superposition_dag (Fine.1.1)
+
+
+
+    #denoise_qc.ry(np.pi/8, bias_qubit) # rotate_dag (Bias)
+
+    # === Brightness shift (add back after denoise) ===
+    if brightness_shift != 0:
+        _adjust_brightness(denoise_qc, intensity_reg, -brightness_shift)
+
+    qc.compose(denoise_qc, inplace=True)
+
     return qc
 
 
+def ACCIDENT_DISCOVERY(qc: QuantumCircuit, pos_regs, intensity_reg, bias=None, ):
+    denoise_qc = QuantumCircuit(*qc.qregs)
+    num_levels = len(pos_regs) // 2
 
-def _uniform_averaging(qc, pos_regs, intensity_reg, strength, num_levels):
-    """
-    Fallback: Simple uniform averaging without edge preservation.
-    Used when work qubits are not available.
-    """
-    for k in range(num_levels):
-        qy = pos_regs[2 * k][0]
-        qx = pos_regs[2 * k + 1][0]
-        
-        weight = ((k + 1) / num_levels) ** 2
-        angle = strength * weight
-        
-        if angle < 1e-6:
-            continue
-        
-        qc.rx(angle, qy)
-        qc.rx(angle, qx)
-    
+    #========================================
+    # Ancilla allocation
+    #========================================
+
+    work_qubits = []
+    for r in denoise_qc.qregs:
+        if r.name == 'work':
+            work_qubits = list(r)
+            break
+
+    if len(work_qubits) < 2 or bias is None:
+        print("WARNING: Insufficient ancillas")
+        return qc
+
+    parent_avg_ancilla = work_qubits[0]
+    consistency_ancilla = work_qubits[1]
+    bias_qubit = bias[0]
+    intensity_qubits = list(intensity_reg)
+
+    # ==========================================
+    # CHECK FINEST LEVEL VS PARENT
+    # ==========================================
+
+    finest_level = num_levels - 1
+
+    if finest_level == 0:
+        denoise_qc.x(bias_qubit)
+        print(denoise_qc.draw(output='text'))
+        qc.compose(denoise_qc, inplace=True)
+        return qc
+
+    qy_fine = pos_regs[2 * finest_level][0]
+    qx_fine = pos_regs[2 * finest_level + 1][0]
+
+    # === Sibling superposition ===
+    # DO NOT CHANGE!
+    denoise_qc.h(qy_fine) # superposition (Fine.1.1)
+    denoise_qc.h(qx_fine) # superposition (Fine.1.2)
+
+    # === Parent average encoding ===
+    # DO NOT CHANGE!
+
+    intensity_msb = intensity_qubits[-1]
+    intensity_msb_1 = intensity_qubits[-2] if len(intensity_qubits) > 1 else intensity_msb
+    intensity_msb_2 = intensity_qubits[-3] if len(intensity_qubits) > 2 else intensity_msb_1
+    intensity_msb_3 = intensity_qubits[-4] if len(intensity_qubits) > 3 else intensity_msb_2
+
+    # Rotate ancilla based on intensity
+    # DO NOT CHANGE!
+    # denoise_qc.x(intensity_msb) # not (MSB0.1)
+    # denoise_qc.x(intensity_msb_1) # not (MSB1.1)
+    # denoise_qc.x(intensity_msb_2) # not (MSB2.1)
+    # denoise_qc.x(intensity_msb_3) # not (MSB3.1)
+
+
+    denoise_qc.cry(np.pi / 8, intensity_msb, parent_avg_ancilla) # rotate (MSB0.1)
+    denoise_qc.cry(np.pi / 4, intensity_msb_1, parent_avg_ancilla) # rotate (MSB1.1)
+    denoise_qc.cry(np.pi / 2, intensity_msb_2, parent_avg_ancilla) # rotate (MSB2.1)
+    denoise_qc.cry(np.pi, intensity_msb_3, parent_avg_ancilla) # rotate (MSB3.1)
+
+    # denoise_qc.x(intensity_msb) # not_dag (MSB0.1)
+    # denoise_qc.x(intensity_msb_1) # not_dag (MSB1.1)
+    # denoise_qc.x(intensity_msb_2) # not_dag (MSB2.1)
+    # denoise_qc.x(intensity_msb_3) # not_dag (MSB3.1)
+
+    # === Uncompute sibling superposition ===
+    # DO NOT CHANGE!
+    denoise_qc.h(qx_fine) # superposition_dag (Fine.2.2)
+    denoise_qc.h(qy_fine) # superposition_dag (Fine.2.1)
+
+    # Now parent_avg_ancilla holds information about parent block
+    # And we're back to single pixel state
+
+    # === Compare pixel to parent average ===
+    # DO NOT CHANGE!
+    # If pixel intensity matches parent_avg_ancilla → consistent
+    # If different → inconsistent
+
+    # Check if MSB matches parent average state
+    # If parent_avg is in |1⟩ and pixel MSB is 1 → match
+    # If parent_avg is in |0⟩ and pixel MSB is 0 → match
+
+    # CNOT from MSB to consistency_ancilla, controlled on parent_avg
+    # This marks matches
+    # DO NOT CHANGE!
+
+    denoise_qc.x(parent_avg_ancilla) # not
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot (PARENT.1)
+    denoise_qc.x(parent_avg_ancilla) # not_dag
+
+
+    denoise_qc.x(intensity_msb) # not
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot (PARENT.2)
+    denoise_qc.x(parent_avg_ancilla) # not_dag
+    denoise_qc.x(intensity_msb) # not_dag
+
+    # === Set bias ===
+    # If consistency_ancilla = 1 → consistent → preserve
+    denoise_qc.cx(consistency_ancilla, bias_qubit) #cnot
+
+    # === Uncompute ===
+    # Uncompute consistency check (XNOR)
+    denoise_qc.x(intensity_msb) # not (MSB0.2)
+    denoise_qc.x(parent_avg_ancilla) # not (PARENT.2)
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot_dag (PARENT.2)
+    denoise_qc.x(parent_avg_ancilla) # not_dag (PARENT.2)
+    denoise_qc.x(intensity_msb) # not_dag (MSB0.2)
+
+    denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla) #ccnot_dag (PARENT.1)
+
+    # Uncompute parent average encoding
+    denoise_qc.h(qy_fine) # superposition_dag (Fine.2.1)
+    denoise_qc.h(qx_fine) # superposition_dag (Fine.2.2)
+
+    # denoise_qc.x(intensity_msb) # not (MSB0.2)
+    # denoise_qc.x(intensity_msb_1) # not (MSB1.2)
+    # denoise_qc.x(intensity_msb_2) # not (MSB2.2)
+    # denoise_qc.x(intensity_msb_3) # not (MSB3.2)
+
+
+    denoise_qc.cry(-np.pi / 8, intensity_msb, parent_avg_ancilla) # rotate_dag (MSB0.1)
+    denoise_qc.cry(-np.pi / 4, intensity_msb_1, parent_avg_ancilla) # rotate_dag (MSB1.1)
+    denoise_qc.cry(-np.pi / 2, intensity_msb_2, parent_avg_ancilla) # rotate_dag (MSB2.1)
+    denoise_qc.cry(-np.pi, intensity_msb_3, parent_avg_ancilla) # rotate_dag (MSB3.1)
+
+    # denoise_qc.x(intensity_msb) # not_dag (MSB0.2)
+    # denoise_qc.x(intensity_msb_1) # not_dag (MSB1.2)
+    # denoise_qc.x(intensity_msb_2) # not_dag (MSB2.2)
+    # denoise_qc.x(intensity_msb_3) # not_dag (MSB3.2)
+
+    denoise_qc.h(qx_fine) # superposition_dag (Fine.1.2)
+    denoise_qc.h(qy_fine) # superposition_dag (Fine.1.1)
+
+    # NOTE: This circuit behaves as a Computational Basis State 8bit to 4bit quantizer
+    #       and potentially as a Basis-to-Angle Encoding converter/transcoder.
+
+    qc.compose(denoise_qc, inplace=True)
+
     return qc
-
 
 
 # -------------------------
@@ -483,22 +584,34 @@ def simulate_statevector(qc: QuantumCircuit, use_gpu=True):
     job = backend.run(transpiled)
     result = job.result()
     return result.get_statevector()
-  
+
 
 def simulate_counts(qc: QuantumCircuit, shots=1024, use_gpu=True):
     pos_qubits = []
-    intensity_qubit = None
-
     for reg in qc.qregs:
         if reg.name.startswith('q_y_') or reg.name.startswith('q_x_'):
             pos_qubits.extend(reg)
-        elif reg.name == 'intensity':
-            intensity_qubit = reg[0]
 
     qubits_to_measure = []
     qubits_to_measure.extend(pos_qubits)
-    if intensity_qubit is not None:
-        qubits_to_measure.append(intensity_qubit)
+
+    # Measure all intensity qubits
+    intensity_reg = None
+    for reg in qc.qregs:
+        if reg.name == 'intensity':
+            intensity_reg = reg
+            break
+    if intensity_reg is not None:
+        qubits_to_measure.extend(list(intensity_reg))
+
+    # Measure bias qubit if present
+    bias_reg = None
+    for reg in qc.qregs:
+        if reg.name == 'bias':
+            bias_reg = reg
+            break
+    if bias_reg is not None:
+        qubits_to_measure.extend(list(bias_reg))
 
     creg = ClassicalRegister(len(qubits_to_measure), 'c')
     qc_measure = qc.copy()
@@ -526,33 +639,8 @@ def simulate_counts(qc: QuantumCircuit, shots=1024, use_gpu=True):
 # Binning helpers
 # -------------------------
 
-def make_bins_qiskit(counts, hierarchy_matrix):
-    bins = defaultdict(utils.empty_bin)
-    pos_len = len(hierarchy_matrix[0])   # number of position bits
 
-    for bitstring, count in counts.items():
-        b = bitstring[::-1]
-
-        if len(b) < pos_len + 1:
-            # Safety guard if something is inconsistent
-            continue
-
-        pos_bits = [int(b[i]) for i in range(pos_len)]
-        intensity_bit = int(b[pos_len])
-
-        key = tuple(pos_bits)
-        if intensity_bit == 1:
-            bins[key]["hit"] += count
-        else:
-            bins[key]["miss"] += count
-        bins[key]["trials"] += count
-
-    return bins
-
-
-
-
-def make_bins_counts(counts, hierarchy_matrix, bit_depth=8):
+def make_bins_counts(counts, hierarchy_matrix, bit_depth=8, denoise=False):
     """
     Create bins from measurement counts for MHRQI(basis) encoding.
     Reconstructs intensity values from multiple qubit measurements.
@@ -561,34 +649,56 @@ def make_bins_counts(counts, hierarchy_matrix, bit_depth=8):
         counts: measurement results from Qiskit
         hierarchy_matrix: position state matrix
         bit_depth: number of intensity qubits
+        denoise: if True, also extract bias statistics
     
     Returns:
         bins: dict mapping position to intensity statistics
+        bias_stats: (optional) dict mapping position to bias statistics
     """
     bins = defaultdict(lambda: {"intensity_sum": 0, "count": 0, "intensity_squared_sum": 0})
+    bias_stats = defaultdict(lambda: {
+        "hit": 0, "miss": 0,
+        "intensity_hit": 0, "intensity_miss": 0
+    }) if denoise else None
+
     pos_len = len(hierarchy_matrix[0])
-    
+
     for bitstring, count in counts.items():
         b = bitstring[::-1]  # Reverse for little-endian
-        
-        if len(b) < pos_len + bit_depth:
+
+        # Qubit layout: [position] [intensity] [bias if denoise]
+        expected_len = pos_len + bit_depth + (1 if denoise else 0)
+
+        if len(b) < expected_len:
             continue
-        
+
         # Extract position bits
         pos_bits = tuple(int(b[i]) for i in range(pos_len))
-        
+
         # Extract intensity bits and reconstruct integer value
         intensity_bits = [int(b[pos_len + i]) for i in range(bit_depth)]
         intensity_value = sum(bit * (2 ** idx) for idx, bit in enumerate(intensity_bits))
-        
+
         # Normalize to [0, 1]
         intensity_normalized = intensity_value / (2**bit_depth - 1)
-        
+
         # Accumulate statistics
         bins[pos_bits]["intensity_sum"] += intensity_normalized * count
         bins[pos_bits]["intensity_squared_sum"] += (intensity_normalized ** 2) * count
         bins[pos_bits]["count"] += count
-    
+
+        # Extract bias bit if present
+        if denoise:
+            bias_bit = int(b[pos_len + bit_depth])
+            if bias_bit == 1:
+                bias_stats[pos_bits]["hit"] += count
+                bias_stats[pos_bits]["intensity_hit"] += intensity_normalized * count
+            else:
+                bias_stats[pos_bits]["miss"] += count
+                bias_stats[pos_bits]["intensity_miss"] += intensity_normalized * count
+
+    if denoise:
+        return bins, bias_stats
     return bins
 
 def make_bins_sv(state_vector, hierarchy_matrix, bit_depth=8, denoise=False):
@@ -598,52 +708,55 @@ def make_bins_sv(state_vector, hierarchy_matrix, bit_depth=8, denoise=False):
     """
     bins = defaultdict(lambda: {"intensity_sum": 0, "count": 0, "intensity_squared_sum": 0})
     bias_stats = defaultdict(lambda: {
-        "hit": 0, "miss": 0, 
+        "hit": 0, "miss": 0,
         "intensity_hit": 0, "intensity_miss": 0
     }) if denoise else None
-    
+
     pos_len = len(hierarchy_matrix[0])
     sv = np.array(state_vector).flatten()
     total_qubits = int(np.log2(len(sv)))
-    
-    # Qubit layout: [position] [intensity] [bias] [and_ancilla] [work]
+
+    # Qubit layout: [position] [intensity] [bias] [work]
     bias_idx = pos_len + bit_depth if denoise else None
-    
+
     # ========== SPARSE EXTRACTION (optimized) ==========
     # Only process non-zero amplitudes
     probs = np.abs(sv) ** 2
     nonzero_mask = probs > 1e-10
     nonzero_indices = np.where(nonzero_mask)[0]
     nonzero_probs = probs[nonzero_mask]
-    
+
     for idx, prb in zip(nonzero_indices, nonzero_probs):
-        # Convert index to binary (little-endian in Qiskit convention)
-        bitstring = format(idx, f'0{total_qubits}b')[::-1]
-        
-        # Extract position bits
-        pos_bits = tuple(int(bitstring[i]) for i in range(pos_len))
-        
+        # Extract position bits using bitwise operations
+        # Assuming little-endian bit layout (Qiskit convention)
+        pos_bits_list = []
+        for i in range(pos_len):
+            pos_bits_list.append((idx >> i) & 1)
+        pos_bits = tuple(pos_bits_list)
+
         # Extract intensity bits
-        intensity_bits = [int(bitstring[pos_len + i]) for i in range(bit_depth)]
-        intensity_value = sum(bit * (2 ** i) for i, bit in enumerate(intensity_bits))
+        intensity_value = 0
+        for i in range(bit_depth):
+            if (idx >> (pos_len + i)) & 1:
+                intensity_value |= (1 << i)
+
         intensity_normalized = intensity_value / (2**bit_depth - 1)
-        
+
         # Accumulate
         bins[pos_bits]["intensity_sum"] += intensity_normalized * prb
         bins[pos_bits]["intensity_squared_sum"] += (intensity_normalized ** 2) * prb
         bins[pos_bits]["count"] += prb
-        
+
         # Bias extraction
-        if denoise and bias_idx is not None and bias_idx < len(bitstring):
-            bias_bit = int(bitstring[bias_idx])
+        if denoise and bias_idx is not None:
+            bias_bit = (idx >> bias_idx) & 1
             if bias_bit == 1:
                 bias_stats[pos_bits]["hit"] += prb
                 bias_stats[pos_bits]["intensity_hit"] += intensity_normalized * prb
             else:
                 bias_stats[pos_bits]["miss"] += prb
                 bias_stats[pos_bits]["intensity_miss"] += intensity_normalized * prb
-    
+
     if denoise:
         return bins, bias_stats
     return bins
-

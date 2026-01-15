@@ -1,0 +1,9 @@
+[
+  {
+    "category": "Structural Similarity",
+    "competitor": "bm3d",
+    "metric": "FSIM",
+    "p_value": 0.00390625,
+    "mean_diff": -0.10456990533404881,
+    "interpretation": "bm3d significantly better",
+    "significant": 

@@ -40,27 +40,40 @@
     <div class="container">
 
         <section id="denoiser">
-            <h2 class="ui-text">04 // Denoising System: Seam Theory</h2>
+            <h2 class="ui-text">04 // Denoising System: Level-by-Level Diffusion</h2>
             <div class="wireframe-box">
                 <div class="mermaid">
                     graph LR
-                    In["Encoded State"] --> Mark["Phase Marking"]
-                    Mark --> Diff["Partial Grover Reflection"]
-                    subgraph Smoothing ["Hierarchical Smoothing"]
+                    In["Encoded State"] --> Diff["Unitary Diffusion"]
+                    subgraph Smoothing_Levels ["Hierarchical Smoothing Control"]
                     Diff --> L0["Global (Coarse)"]
                     Diff --> Lk["Local (Fine)"]
                     end
                     Lk --> Out["Denoised State"]
                     L0 --> Out
+                    Out -- "Weighting" --> Recon["Weighted Reconstruction"]
                 </div>
                 <p>
-                    The denoiser applies <strong>Unitary Diffusion</strong> through partial Grover reflections.
-                    <strong>Seam Theory</strong> enables cross-boundary information flow by coupling sibling blocks,
-                    smoothing flat regions while respecting phase-encoded edges.
+                    The MHRQI denoiser implements <strong>Unitary Diffusion</strong> through partial Grover reflections.
+                    By coupling sibling blocks at each hierarchy level through quantum interference, the system
+                    effectively
+                    addresses <strong>boundary discontinuities</strong> (seams). Smooth regions are averaged within
+                    hierarchical sectors while structured regions (edges) are preserved via phase masking.
                 </p>
-                <div id="denoiseExplorer" class="wireframe-box"
-                    style="background:#f9f9f9; text-align:center; padding: 20px;">
-                    <p style="font-family:var(--font-ui); font-size:0.8rem;">[HIERARCHICAL DIFFUSION SIMULATOR]</p>
+                <div class="explorer-grid" style="margin-top: 30px;">
+                    <div style="max-width:300px; margin:0 auto;">
+                        <div class="ui-text" style="font-size:0.7rem; margin-bottom:5px;">INTERACTIVE.PROBE [4 x 4]
+                        </div>
+                        <div class="grid-wrapper" id="pixelGrid" style="max-width:200px; background-size: 50px 50px;">
+                        </div>
+                        <p style="font-size:0.6rem; color:#888; text-align:center; margin-top:5px;">[CLICK PIXEL TO
+                            ANALYZE DIFFUSION]</p>
+                    </div>
+                    <div id="homogeneityExplorer" class="wireframe-box"
+                        style="background:#f9f9f9; text-align:center; padding: 20px;">
+                        <p style="font-family:var(--font-ui); font-size:0.8rem;">[SELECT PIXEL TO ANALYZE DIFFUSION]
+                        </p>
+                    </div>
                 </div>
             </div>
         </section>

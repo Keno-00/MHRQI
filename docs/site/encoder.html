@@ -44,26 +44,31 @@
             <div class="wireframe-box">
                 <div class="mermaid">
                     graph LR
-                    HCV["HCV Trace"] --> Bin["Basis Bits"]
-                    HCV --> Phase["Phase Gradients"]
-                    Bin --> State["State Construction"]
-                    Phase --> State
-                    State --> Prep["H-Gate Superposition"]
+                    HCV["Position (HCV)"] --> Ancilla["Ancilla Target"]
+                    Ancilla -- "Controlled Flip" --> Target["Intensity Bits (0-255)"]
+                    Img["Pixel Intensity"] -- "Binary Map" --> Ancilla
+                    Target --> State["Basis-Encoded State"]
                 </div>
                 <p>
-                    MHRQI-B uses <strong>Basis Encoding</strong> for pixel intensities and <strong>Phase Gradient
-                        Sensing</strong>
-                    for structural preservation. Local grayscale values are mapped to binary integers across the
-                    intensity register.
+                    MHRQI-B uses <strong>Basis Encoding</strong> for pixel intensities. Each pixel's grayscale value
+                    is mapped to a binary integer and encoded across the intensity register using multi-controlled
+                    ancilla-driven bit flips. This ensures a compact, searchable representation of the image structure.
                 </p>
-                <div class="equation-box">
-                    $$|\Psi_{MHRQI}\rangle = \frac{1}{\sqrt{N}} \sum_{x,y} |H(x,y)\rangle \otimes e^{i \phi_{x,y}}
-                    |I_{bit}\rangle$$
-                </div>
-                <!-- This section can have its own mini-explorer or visualization -->
-                <div id="circuitExplorer" class="wireframe-box"
-                    style="background:#f9f9f9; text-align:center; padding: 20px;">
-                    <p style="font-family:var(--font-ui); font-size:0.8rem;">[REAL-TIME GATE SEQUENCE VISUALIZER]</p>
+
+                <div class="explorer-grid" style="margin-top: 30px;">
+                    <div style="max-width:300px; margin:0 auto;">
+                        <div class="ui-text" style="font-size:0.7rem; margin-bottom:5px;">INTERACTIVE.PROBE [4 x 4]
+                        </div>
+                        <div class="grid-wrapper" id="pixelGrid" style="max-width:200px; background-size: 50px 50px;">
+                        </div>
+                        <p style="font-size:0.6rem; color:#888; text-align:center; margin-top:5px;">[CLICK PIXEL TO
+                            GENERATE GATES]</p>
+                    </div>
+                    <div id="circuitExplorer" class="wireframe-box"
+                        style="background:#f9f9f9; text-align:left; padding: 20px;">
+                        <p style="font-family:var(--font-ui); font-size:0.8rem; text-align:center;">[SELECT PIXEL TO SEE
+                            GATES]</p>
+                    </div>
                 </div>
             </div>
         </section>

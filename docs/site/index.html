@@ -50,11 +50,13 @@
             <h2 class="ui-text">00 // Executive Summary</h2>
             <div class="wireframe-box">
                 <p>
-                    <strong>MHRQI</strong> is a state-of-the-art quantum framework designed for high-fidelity medical
-                    image processing.
+                    <strong>MHRQI</strong> is a quantum framework designed for high-fidelity medical
+                    image processing, specifically targeting **Brightness Scan (B-SCAN) Optical Coherence Tomography
+                    (OCT) Images for Retinal Imaging**.
                     By combining <strong>Magnitude-based registration</strong> with <strong>Hierarchical
                         decomposition</strong>,
-                    MHRQI enables efficient encoding and advanced denoising capabilities on near-term quantum hardware.
+                    MHRQI enables efficient basis encoding and advanced noise suppression on near-term quantum
+                    hardware.
                 </p>
             </div>
         </section>
@@ -63,14 +65,13 @@
             <div class="problem-statement">
                 <h3 class="ui-text">Statement of the Problem</h3>
                 <p>
-                    "Medical imaging, particularly Speckle-corrupted ultrasound and OCT scans, requires precise edge
-                    preservation
-                    while suppressing Gaussian and Poisson noise. Traditional quantum image representations (FRQI/NEQR)
-                    suffer from
-                    global dependency—small local shifts corrupt the entire state. MHRQI solves this by localizing
-                    information
-                    within a magnitude-hierarchical tree, allowing for localized unitary diffusion that respects
-                    structural seams."
+                    "Medical imaging requires precise edge preservation while suppressing complex noise.
+                    Traditional quantum image representations (FRQI/NEQR) suffer from global dependency—small local
+                    shifts
+                    corrupt the entire state. MHRQI solves this by localizing information within a
+                    magnitude-hierarchical tree,
+                    addressing **technical discontinuities at block boundaries** through hierarchical neighbor
+                    correlation."
                 </p>
             </div>
         </section>
@@ -84,15 +85,15 @@
                     Pre --> Core
                     subgraph Core ["CORE SYSTEM PIPELINE"]
                     Encod["Basis Encoder"] -- "MHRQI-B" --> Den["Unitary Denoising"]
-                    Den -- "Seam Theory" --> Sim["Simulator Interface"]
+                    Den -- "Correlation" --> Sim["Simulator Interface"]
                     Sim -- "Aer/GPU" --> Ret["Hierarchical Retrieval"]
                     end
                     Ret --> Bench["Metric Benchmarking"]
                 </div>
                 <p>
                     The MHRQI pipeline translates classical pixel data into a hierarchical quantum state, performs
-                    unitary denoising via Seam Theory, and reconstructs the improved image through multi-level
-                    measurement sampling.
+                    unitary denoising via hierarchical coupling, and reconstructs the image through multi-level
+                    statistical sampling.
                 </p>
             </div>
         </section>

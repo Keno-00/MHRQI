@@ -1,0 +1,164 @@
+[
+  {
+    "category": "Structural Similarity",
+    "competitor": "bm3d",
+    "metric": "FSIM",
+    "p_value": 0.00390625,
+    "mean_diff": -0.10456990533404881,
+    "interpretation": "bm3d significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "bm3d",
+    "metric": "SSIM",
+    "p_value": 0.00390625,
+    "mean_diff": -6.894715901079657e-05,
+    "interpretation": "bm3d significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "nlmeans",
+    "metric": "FSIM",
+    "p_value": 0.00390625,
+    "mean_diff": -0.08701725800832112,
+    "interpretation": "nlmeans significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "nlmeans",
+    "metric": "SSIM",
+    "p_value": 0.00390625,
+    "mean_diff": -6.196754881812903e-05,
+    "interpretation": "nlmeans significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "srad",
+    "metric": "FSIM",
+    "p_value": 0.12890625,
+    "mean_diff": 0.008854574627346463,
+    "interpretation": "Comparable (no significant difference)",
+    "significant": 0
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "srad",
+    "metric": "SSIM",
+    "p_value": 0.0078125,
+    "mean_diff": -2.5000496527378185e-05,
+    "interpretation": "srad significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction",
+    "competitor": "bm3d",
+    "metric": "SSI",
+    "p_value": 0.203125,
+    "mean_diff": -0.08237709105014801,
+    "interpretation": "Comparable (no significant difference)",
+    "significant": 0
+  },
+  {
+    "category": "Speckle Reduction",
+    "competitor": "bm3d",
+    "metric": "SMPI",
+    "p_value": 0.00390625,
+    "mean_diff": -0.1783353951242235,
+    "interpretation": "bm3d significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction",
+    "competitor": "nlmeans",
+    "metric": "SSI",
+    "p_value": 0.5703125,
+    "mean_diff": -0.08548986911773682,
+    "interpretation": "Comparable (no significant difference)",
+    "significant": 0
+  },
+  {
+    "category": "Speckle Reduction",
+    "competitor": "nlmeans",
+    "metric": "SMPI",
+    "p_value": 0.00390625,
+    "mean_diff": -0.19239018360773721,
+    "interpretation": "nlmeans significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction",
+    "competitor": "srad",
+    "metric": "SSI",
+    "p_value": 0.00390625,
+    "mean_diff": 0.08228529244661331,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction",
+    "competitor": "srad",
+    "metric": "SMPI",
+    "p_value": 0.00390625,
+    "mean_diff": -0.061576896243625216,
+    "interpretation": "srad significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Perceptual Quality (No-Reference)",
+    "competitor": "bm3d",
+    "metric": "PIQE",
+    "p_value": 0.00390625,
+    "mean_diff": -37.482505648229996,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Perceptual Quality (No-Reference)",
+    "competitor": "bm3d",
+    "metric": "BRISQUE",
+    "p_value": 0.01953125,
+    "mean_diff": -22.518922203641914,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Perceptual Quality (No-Reference)",
+    "competitor": "nlmeans",
+    "metric": "PIQE",
+    "p_value": 0.0078125,
+    "mean_diff": -24.412489799376363,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Perceptual Quality (No-Reference)",
+    "competitor": "nlmeans",
+    "metric": "BRISQUE",
+    "p_value": 0.25,
+    "mean_diff": -10.137189548359832,
+    "interpretation": "Comparable (no significant difference)",
+    "significant": 0
+  },
+  {
+    "category": "Perceptual Quality (No-Reference)",
+    "competitor": "srad",
+    "metric": "PIQE",
+    "p_value": 0.00390625,
+    "mean_diff": -32.75449176537156,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Perceptual Quality (No-Reference)",
+    "competitor": "srad",
+    "metric": "BRISQUE",
+    "p_value": 0.00390625,
+    "mean_diff": -30.751757272863657,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  }
+]

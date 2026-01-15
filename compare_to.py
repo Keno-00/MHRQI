@@ -8,13 +8,16 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
-import numpy as np
-import cv2
-from bm3d import bm3d, BM3DProfile, BM3DStages
-import srad
-import plots
 import datetime
 import os
+
+import cv2
+import numpy as np
+import srad
+from bm3d import BM3DProfile, BM3DStages, bm3d
+
+import plots
+
 # -----------------------------
 # Image domain utilities
 # -----------------------------
@@ -121,7 +124,7 @@ def compare_to(image_input, proposed_img=None, methods="all",
                reference_image=None):
 
     img = to_float01(image_input)
-    
+
     if reference_image is not None:
         ref_img = to_float01(reference_image)
     else:
@@ -130,7 +133,7 @@ def compare_to(image_input, proposed_img=None, methods="all",
     if save and save_dir is None:
         date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M")
         save_dir = os.path.join("evals", date_str)
-    
+
     if save and save_dir:
         os.makedirs(save_dir, exist_ok=True)
 
@@ -176,40 +179,40 @@ def compare_to(image_input, proposed_img=None, methods="all",
             methods_to_run.append((m_name, denoisers[m_name]))
         else:
             print(f"Warning: Unknown denoiser method '{m_name}' skipped.")
-            
+
     if proposed is not None:
-        methods_to_run.append(("proposed", None)) 
+        methods_to_run.append(("proposed", None))
 
     # -----------------------------
     # Compute Metrics using correct references
     # -----------------------------
-    
+
     results = []
-    
+
     for method_name, func in methods_to_run:
         # print(f"  ... processing {method_name}")
-        
+
         if method_name == "Original":
             res_img = noisy_img
         elif method_name == "proposed" and proposed is not None:
             res_img = proposed
         else:
             res_img = func(noisy_img)
-            
+
         # -- Compute Metrics --
         m = {}
-        
+
         # 1. No Reference Metrics (Quality / Naturalness)
         m["PIQE"] = plots.compute_piqe(res_img)
         m["BRISQUE"] = plots.compute_brisque(res_img)
         m["NIQE"] = plots.compute_niqe(res_img)
-        
+
         # 2. Speckle / Consistency Metrics (vs NOISY Input)
         # SSI, SMPI, DR-IQA *must* compare to the Noisy Speckled image
         m["SSI"] = plots.compute_ssi(noisy_img, res_img, roi)
         m["SMPI"] = plots.compute_smpi(noisy_img, res_img)
         m["DR-IQA"] = plots.compute_dr_iqa(noisy_img, res_img)
-        
+
         # 3. Full Reference Metrics (vs CLEAN Reference)
         if has_clean_ref:
             m["FSIM"] = plots.compute_fsim(clean_img, res_img)
@@ -217,12 +220,12 @@ def compare_to(image_input, proposed_img=None, methods="all",
         else:
             m["FSIM"] = float('nan')
             m["SSIM"] = float('nan')
-            
+
         # Store result image for plotting
         res_u8 = to_uint8(res_img)
         if save:
              cv2.imwrite(os.path.join(save_dir, f"{save_prefix}_{method_name}.png"), res_u8)
-        
+
         results.append({
             "name": method_name,
             "metrics": m,
@@ -232,7 +235,7 @@ def compare_to(image_input, proposed_img=None, methods="all",
     # -----------------------------
     # Display Tables (Separated)
     # -----------------------------
-    
+
     # Filter out "Original" from display if requested?
     # User: "remove original from here... only participants would show in those comparisons"
     # -----------------------------
@@ -241,28 +244,28 @@ def compare_to(image_input, proposed_img=None, methods="all",
     # -----------------------------
     # Generate Reports
     # -----------------------------
-    
+
     # 1. Full Ref Report (vs Clean)
     if has_clean_ref:
         plots.MetricsPlotter.print_summary_text(display_results, ["FSIM", "SSIM"], "Full Reference Metrics (vs Clean Ref)")
         plots.MetricsPlotter.save_summary_report(
-            to_uint8(clean_img), 
+            to_uint8(clean_img),
             display_results,  # Only participants, not Original
-            ["FSIM", "SSIM"], 
-            "Full Reference Metrics (vs Clean Ref)", 
+            ["FSIM", "SSIM"],
+            "Full Reference Metrics (vs Clean Ref)",
             "report_full_ref",
             save_dir=save_dir,
             include_original_in_table=False
         )
-        
+
     # 2. Speckle Report (vs Noisy)
     # Includes Original in table, and uses Noisy as Reference visualization
     plots.MetricsPlotter.print_summary_text(results, ["SSI", "SMPI", "DR-IQA"], "Speckle/Consistency Metrics (vs Noisy Input)")
     plots.MetricsPlotter.save_summary_report(
-        to_uint8(noisy_img), 
-        results, 
-        ["SSI", "SMPI", "DR-IQA"], 
-        "Speckle/Consistency Metrics (vs Noisy Input)", 
+        to_uint8(noisy_img),
+        results,
+        ["SSI", "SMPI", "DR-IQA"],
+        "Speckle/Consistency Metrics (vs Noisy Input)",
         "report_speckle",
         save_dir=save_dir,
         include_original_in_table=True
@@ -273,9 +276,9 @@ def compare_to(image_input, proposed_img=None, methods="all",
     plots.MetricsPlotter.print_summary_text(results, ["PIQE", "BRISQUE", "NIQE"], "No-Reference Quality Metrics")
     plots.MetricsPlotter.save_summary_report(
         None,  # <--- KEY CHANGE: No Reference Image
-        results, 
-        ["PIQE", "BRISQUE", "NIQE"], 
-        "No-Reference Quality Metrics", 
+        results,
+        ["PIQE", "BRISQUE", "NIQE"],
+        "No-Reference Quality Metrics",
         "report_noref",
         save_dir=save_dir,
         include_original_in_table=True
@@ -283,7 +286,7 @@ def compare_to(image_input, proposed_img=None, methods="all",
 
     if save:
         print(f"Comparison reports saved to {save_dir}")
-        
+
     return results
 
 
