@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MHRQI // IMAGE RETRIEVAL</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fonts-cmu@1.0.0/serif/index.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="core.js" defer></script>
+</head>
+
+<body>
+    <header id="mainHeader">
+        <div class="container-inner">
+            <div style="border-bottom: 1px solid var(--ink-color); padding-bottom: 10px; margin-bottom: 20px;">
+                <h1 style="border:none; margin:0; padding:0; font-size: 2.5rem; line-height: 1;">MHRQI</h1>
+                <div class="subtitle-row"
+                    style="font-family: var(--font-ui); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <span>A Hierarchical Representation for Quantum Image Processing</span>
+                    <span style="font-size: 0.7rem; text-align: right;">v2.0.4</span>
+                </div>
+            </div>
+            <nav class="main-nav">
+                <a href="index.html">Overview</a>
+                <a href="preprocessing.html">Preprocessing</a>
+                <a href="encoder.html">Encoder</a>
+                <a href="denoiser.html">Denoiser</a>
+                <a href="simulation.html">Simulation</a>
+                <a href="retrieval.html">Image Retrieval</a>
+                <a href="benchmark.html">Benchmark</a>
+                <a href="findings.html">Findings</a>
+                <a href="about.html">About</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <section id="retrieval-overview">
+            <h2 class="ui-text">Image Retrieval Algorithm</h2>
+            <div class="wireframe-box">
+                <p>
+                    Image retrieval in MHRQI is a <strong>confidence-weighted reconstruction</strong> process.
+                    After quantum simulation, each pixel has associated measurement statistics that determine
+                    how much to trust its value versus blending with neighbors.
+                </p>
+            </div>
+        </section>
+
+        <!-- Step 1: Outcome Qubit -->
+        <section id="step1-outcome">
+            <h2 class="ui-text">Step 1: Understanding the Outcome Qubit</h2>
+            <div class="wireframe-box">
+                <p>
+                    During denoising, each pixel is compared to its parent block average. The
+                    <strong>outcome qubit</strong> records the result:
+                </p>
+                <div class="content-block"
+                    style="background:#f9f9f9; padding:20px; margin:20px 0; border-left:3px solid #333;">
+                    <p style="margin:0;">
+                        <strong>Outcome = 0 (Miss):</strong> Pixel is <em>consistent</em> with parent → PRESERVE
+                        original value<br>
+                        <strong>Outcome = 1 (Hit):</strong> Pixel is <em>inconsistent</em> with parent → SMOOTH with
+                        neighbors
+                    </p>
+                </div>
+                <p>
+                    After many simulation shots (or statevector sampling), we accumulate statistics for each pixel:
+                    how many times it was marked as a "hit" vs "miss".
+                </p>
+            </div>
+        </section>
+
+        <!-- Step 2: Confidence Calculation -->
+        <section id="step2-confidence">
+            <h2 class="ui-text">Step 2: Confidence Calculation</h2>
+            <div class="wireframe-box">
+                <p>
+                    The <strong>confidence score</strong> measures how often the denoiser marked the pixel
+                    as inconsistent (needing smoothing):
+                </p>
+                <div class="content-block" style="text-align: center; margin: 20px 0;">
+                    <p style="font-family: var(--font-ui); font-size: 1.2rem;">
+                        $$ \text{confidence}(x,y) = \frac{\text{hits}}{\text{hits} + \text{misses}} $$
+                    </p>
+                </div>
+                <p>
+                    <strong>Interpretation:</strong>
+                </p>
+                <ul style="line-height: 1.8;">
+                    <li><strong>Low confidence (near 0):</strong> Pixel was rarely marked as inconsistent → it's likely
+                        a real edge or feature</li>
+                    <li><strong>High confidence (near 1):</strong> Pixel was frequently marked as inconsistent → it's
+                        likely noise</li>
+                </ul>
+                <p>
+                    <em>Note: Counter-intuitively, "high confidence" means high confidence that the pixel is noise.</em>
+                </p>
+            </div>
+        </section>
+
+        <!-- Step 3: Neighbor Selection -->
+        <section id="step3-neighbors">
+            <h2 class="ui-text">Step 3: Trusted Neighbor Selection</h2>
+            <div class="wireframe-box">
+                <p>
+                    To smooth noisy pixels, we look at their 8-connected neighbors. But we only trust neighbors
+                    that are themselves <em>likely to be real features</em>.
+                </p>
+                <div class="content-block"
+                    style="background:#f9f9f9; padding:20px; margin:20px 0; border-left:3px solid #333;">
+                    <p style="margin:0;">
+                        <strong>Threshold:</strong> <code>CONFIDENCE_THRESHOLD = 0.7</code><br><br>
+                        A neighbor is "trusted" if its confidence ≤ 0.7 (i.e., it wasn't frequently marked as noise).
+                    </p>
+                </div>
+                <p>
+                    For each pixel, we collect all trusted neighbors and compute their <strong>median</strong>
+                    intensity.
+                    If no trusted neighbors exist, we use all neighbors as fallback.
+                </p>
+            </div>
+        </section>
+
+        <!-- Step 4: Blending Formula -->
+        <section id="step4-blending">
+            <h2 class="ui-text">Step 4: Confidence-Weighted Blending</h2>
+            <div class="wireframe-box">
+                <p>
+                    The final pixel intensity is a blend between the original value and the neighbor context,
+                    weighted by confidence:
+                </p>
+                <div class="content-block"
+                    style="text-align: center; margin: 20px 0; padding: 20px; background: #f0f8ff; border: 1px solid #cce;">
+                    <p style="font-family: var(--font-ui); font-size: 1.1rem;">
+                        $$ I_{\text{final}}(x,y) = \text{conf} \times I_{\text{original}} + (1 - \text{conf}) \times
+                        I_{\text{neighbor median}} $$
+                    </p>
+                </div>
+                <p>
+                    <strong>What this means:</strong>
+                </p>
+                <ul style="line-height: 1.8;">
+                    <li>If <code>conf ≈ 0</code> (pixel is consistent): Output ≈ original value (no change)</li>
+                    <li>If <code>conf ≈ 1</code> (pixel is noisy): Output ≈ neighbor median (full smoothing)</li>
+                    <li>If <code>conf ≈ 0.5</code>: Output = 50/50 blend of original and neighbors</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Algorithm Summary -->
+        <section id="algorithm-summary">
+            <h2 class="ui-text">Complete Algorithm</h2>
+            <div class="wireframe-box">
+                <div class="mermaid">
+                    graph TD
+                    A["Simulation Results"] --> B["Extract hit/miss per pixel"]
+                    B --> C["confidence = hits / total"]
+                    C --> D["Find trusted neighbors (conf ≤ 0.7)"]
+                    D --> E["context = median(trusted neighbors)"]
+                    E --> F["I = conf × original + (1-conf) × context"]
+                    F --> G["Reconstructed Image"]
+                </div>
+                <div style="margin-top: 20px; padding: 15px; background: #fffef0; border: 1px solid #ddc;">
+                    <p style="font-size: 0.85rem; margin: 0;">
+                        <strong>Code Reference:</strong> See <code>mhrqi_bins_to_image()</code> in
+                        <a href="https://github.com/Keno-00/MHRQI/blob/main/utils.py" style="color:#333;">utils.py</a>
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Demo Section -->
+        <section id="retrieval-demo">
+            <h2 class="ui-text">Example Calculation</h2>
+            <div class="wireframe-box">
+                <p>Consider a pixel at position (5, 3):</p>
+                <div class="content-block"
+                    style="font-family: monospace; font-size: 0.85rem; background:#f9f9f9; padding:15px; line-height:1.8;">
+                    <strong>Given:</strong><br>
+                    • hits = 180, misses = 20 (from 200 simulation shots)<br>
+                    • original_intensity = 0.85<br>
+                    • trusted_neighbor_median = 0.72<br><br>
+
+                    <strong>Step 1:</strong> confidence = 180 / (180 + 20) = 0.90<br>
+                    <strong>Step 2:</strong> final = 0.90 × 0.85 + 0.10 × 0.72<br>
+                    <strong>Step 3:</strong> final = 0.765 + 0.072 = <strong>0.837</strong><br><br>
+
+                    <em>Result: The noisy pixel (conf=0.90) is smoothed toward its neighbors.</em>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+
+</html>

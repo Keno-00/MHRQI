@@ -11,66 +11,176 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fonts-cmu@1.0.0/serif/index.css">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="core.js" defer></script>
 </head>
 
 <body>
     <header id="mainHeader">
         <div class="container-inner">
-            <div style="border-bottom: 4px solid var(--ink-color); padding-bottom: 20px; margin-bottom: 20px;">
-                <h1 style="border:none; margin:0; padding:0; font-size: 3rem; line-height: 1;">MHRQI</h1>
+            <div style="border-bottom: 1px solid var(--ink-color); padding-bottom: 10px; margin-bottom: 20px;">
+                <h1 style="border:none; margin:0; padding:0; font-size: 2.5rem; line-height: 1;">MHRQI</h1>
                 <div class="subtitle-row"
-                    style="font-family: var(--font-ui); font-size: 1rem; display: flex; justify-content: space-between; align-items: flex-end;">
-                    <span>Magnitude-Hierarchical Representation of Quantum Images</span>
-                    <span style="font-size: 0.7rem; text-align: right;">SYS.VER: 2.0.4</span>
+                    style="font-family: var(--font-ui); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <span>A Hierarchical Representation for Quantum Image Processing</span>
+                    <span style="font-size: 0.7rem; text-align: right;">v2.0.4</span>
                 </div>
             </div>
             <nav class="main-nav">
-                <a href="index.html">Home</a>
+                <a href="index.html">Overview</a>
                 <a href="preprocessing.html">Preprocessing</a>
                 <a href="encoder.html">Encoder</a>
-                <a href="denoiser.html">Denoising</a>
+                <a href="denoiser.html">Denoiser</a>
                 <a href="simulation.html">Simulation</a>
+                <a href="retrieval.html">Image Retrieval</a>
                 <a href="benchmark.html">Benchmark</a>
+                <a href="findings.html">Findings</a>
+                <a href="about.html">About</a>
             </nav>
         </div>
     </header>
 
     <div class="container">
-
-        <section id="simulator">
-            <h2 class="ui-text">05 // Simulator Engine</h2>
+        <!-- Overview -->
+        <section id="simulation-overview">
+            <h2 class="ui-text">Simulation Framework</h2>
             <div class="wireframe-box">
-                <div class="mermaid">
-                    graph LR
-                    Circ["Quantum Circuit"] --> Gate["Gate-based (Aer)"]
-                    Circ --> SV["Statevector (GPU)"]
-                    Circ --> DD["Decision Diagrams (MQT)"]
-                    Gate --> Results["Measurement Counts"]
-                    SV --> Results
-                    DD --> Results
-                </div>
                 <p>
-                    The framework supports multiple measurement-based and direct state simulation backends,
-                    including GPU-accelerated statevectors and memory-efficient Decision Diagrams for scaling to larger
-                    images.
+                    MHRQI runs on <strong>classical simulation</strong> using Qiskit Aer.
+                    Two simulation modes are supported depending on image size and accuracy requirements.
                 </p>
             </div>
         </section>
 
-        <section id="retrieval">
-            <h2 class="ui-text">06 // Image Retrieval System</h2>
+        <!-- Simulation Modes -->
+        <section id="simulation-modes">
+            <h2 class="ui-text">Simulation Modes</h2>
+            <div class="wireframe-box">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">
+                    <div class="content-block" style="padding:15px; border:1px solid #ddd;">
+                        <h3 style="font-size:0.95rem; margin:0 0 10px 0;">Statevector Simulation</h3>
+                        <p style="font-size:0.85rem; margin:0;">
+                            <strong>Function:</strong> <code>simulate_statevector()</code><br><br>
+                            Computes exact probability amplitudes. No sampling noise.
+                            Ideal for development and debugging.
+                        </p>
+                        <div style="margin-top:10px; font-size:0.8rem; color:#666;">
+                            ✓ Exact results<br>
+                            ✗ Memory intensive<br>
+                            ✓ GPU acceleration available
+                        </div>
+                    </div>
+                    <div class="content-block" style="padding:15px; border:1px solid #ddd;">
+                        <h3 style="font-size:0.95rem; margin:0 0 10px 0;">Shot-Based Simulation</h3>
+                        <p style="font-size:0.85rem; margin:0;">
+                            <strong>Function:</strong> <code>simulate_counts()</code><br><br>
+                            Samples measurement outcomes over many "shots".
+                            More realistic model of quantum behavior.
+                        </p>
+                        <div style="margin-top:10px; font-size:0.8rem; color:#666;">
+                            ✓ Realistic sampling<br>
+                            ✓ Lower memory<br>
+                            ✗ Statistical noise
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Hit/Miss Definition -->
+        <section id="hit-miss">
+            <h2 class="ui-text">Understanding Hits and Misses</h2>
+            <div class="wireframe-box">
+                <p>
+                    After simulation, each measurement outcome includes the state of the <strong>outcome qubit</strong>.
+                    This determines whether the pixel is marked for smoothing.
+                </p>
+                <div class="content-block" style="background:#f9f9f9; padding:20px; margin:20px 0;">
+                    <table style="width:100%; font-size:0.85rem; border-collapse:collapse;">
+                        <thead>
+                            <tr style="background:#333; color:#fff;">
+                                <th style="padding:10px; text-align:left;">Outcome Qubit</th>
+                                <th style="padding:10px; text-align:left;">Meaning</th>
+                                <th style="padding:10px; text-align:left;">Reconstruction Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:10px; border-bottom:1px solid #ddd;"><code>0</code> (Miss)</td>
+                                <td style="padding:10px; border-bottom:1px solid #ddd;">Pixel is <em>consistent</em>
+                                    with parent</td>
+                                <td style="padding:10px; border-bottom:1px solid #ddd;">Preserve original intensity</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:10px;"><code>1</code> (Hit)</td>
+                                <td style="padding:10px;">Pixel is <em>inconsistent</em> (likely noise)</td>
+                                <td style="padding:10px;">Smooth with neighbor median</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p>
+                    The hit/miss ratio determines the <strong>confidence score</strong> used in image retrieval.
+                </p>
+            </div>
+        </section>
+
+        <!-- Pipeline -->
+        <section id="pipeline">
+            <h2 class="ui-text">Complete Pipeline</h2>
             <div class="wireframe-box">
                 <div class="mermaid">
                     graph LR
-                    Counts["Measurement Hits"] --> Prob["Hierarchical Probabilities"]
-                    Prob --> Interp["Intensity Interpolation"]
-                    Interp --> Recon["Final Image"]
+                    A["MHRQI_init"] --> B["MHRQI_upload"]
+                    B --> C["DENOISER"]
+                    C --> D["simulate_statevector or simulate_counts"]
+                    D --> E["make_bins_sv or make_bins_counts"]
+                    E --> F["mhrqi_bins_to_image"]
                 </div>
+                <p style="margin-top:20px; font-size:0.85rem;">
+                    The binning functions (<code>make_bins_*</code>) extract intensity and outcome statistics
+                    from measurement results, which are then used by the image retrieval algorithm.
+                </p>
+            </div>
+        </section>
+
+        <!-- Demo -->
+        <section id="simulation-demo">
+            <h2 class="ui-text">Demonstration</h2>
+            <div class="wireframe-box">
                 <p>
-                    Reconstruction involves sampling the hierarchical state to compute the **Hit-Rate**
-                    across position-intensity branches. In Basis-Encoded MHRQI, the intensity is reconstructed
-                    by aggregating bitwise measurement statistics from the multi-qubit intensity register.
+                    This demo shows simulated measurement outcomes for a 16×16 grid.
+                </p>
+
+                <div class="sim-view-container" style="margin-top: 30px;">
+                    <div id="simGrid" class="grid-wrapper medium"
+                        style="margin: 0 auto; max-width: 400px; display: grid; grid-template-columns: repeat(16, 1fr); background-size: 25px 25px;">
+                    </div>
+                    <div class="sim-controls" style="margin-top: 20px; text-align: center;">
+                        <button id="runSimBtn" class="ui-button">RUN SAMPLING DEMO</button>
+                        <div id="simStatus" class="ui-text" style="font-size:0.7rem; margin-top:10px;">STATUS: IDLE
+                        </div>
+                    </div>
+                </div>
+
+                <div id="simOutput" class="wireframe-box"
+                    style="margin-top:20px; background:#f9f9f9; display:none; max-height: 200px; overflow-y: auto;">
+                    <div class="ui-text" style="font-size:0.7rem; border-bottom:1px solid #eee; margin-bottom:10px;">
+                        SAMPLING DATA (first 10 bins)</div>
+                    <div id="simData" style="font-family:monospace; font-size:0.7rem;"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Code Reference -->
+        <section id="code-reference">
+            <h2 class="ui-text">Code Reference</h2>
+            <div class="wireframe-box">
+                <p style="font-size: 0.85rem;">
+                    <strong>Simulation:</strong> <code>simulate_statevector()</code>, <code>simulate_counts()</code><br>
+                    <strong>Binning:</strong> <code>make_bins_sv()</code>, <code>make_bins_counts()</code><br>
+                    <strong>File:</strong> <a href="https://github.com/Keno-00/MHRQI/blob/main/circuit.py"
+                        style="color:#333;">circuit.py</a>
                 </p>
             </div>
         </section>

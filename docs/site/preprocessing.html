@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fonts-cmu@1.0.0/serif/index.css">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="core.js" defer></script>
 </head>
 
@@ -19,102 +19,191 @@
     <header id="mainHeader">
         <div class="container-inner">
             <div style="border-bottom: 1px solid var(--ink-color); padding-bottom: 10px; margin-bottom: 20px;">
-                <h1 style="border:none; margin:0; padding:0; font-size: 3rem; line-height: 1;">MHRQI</h1>
+                <h1 style="border:none; margin:0; padding:0; font-size: 2.5rem; line-height: 1;">MHRQI</h1>
                 <div class="subtitle-row"
-                    style="font-family: var(--font-ui); font-size: 1rem; display: flex; justify-content: space-between; align-items: flex-end;">
-                    <span>Magnitude-Hierarchical Representation of Quantum Images</span>
-                    <span style="font-size: 0.7rem; text-align: right;">SYS.VER: 2.0.4</span>
+                    style="font-family: var(--font-ui); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <span>A Hierarchical Representation for Quantum Image Processing</span>
+                    <span style="font-size: 0.7rem; text-align: right;">v2.0.4</span>
                 </div>
             </div>
             <nav class="main-nav">
-                <a href="index.html">Home</a>
+                <a href="index.html">Overview</a>
                 <a href="preprocessing.html">Preprocessing</a>
                 <a href="encoder.html">Encoder</a>
-                <a href="denoiser.html">Denoising</a>
+                <a href="denoiser.html">Denoiser</a>
                 <a href="simulation.html">Simulation</a>
+                <a href="retrieval.html">Image Retrieval</a>
                 <a href="benchmark.html">Benchmark</a>
+                <a href="findings.html">Findings</a>
+                <a href="about.html">About</a>
             </nav>
         </div>
     </header>
 
     <div class="container">
-
-        <section id="workflow-summary">
-            <h2 class="ui-text">01 // Hierarchical Decomposition Architecture</h2>
-            <div class="wireframe-box">
-                <div class="mermaid">
-                    graph LR
-                    Img["Input Image (Normalized)"] --> Bit["Intensity Quantization (Basis)"]
-                    Bit --> HCV["Coordinate Remapping (HCV)"]
-                    HCV --> QTree["Magnitude-Hierarchical Tree"]
-                    QTree --> Circuit["Phase-Gradient Gate Logic"]
-                </div>
-                <p style="margin-top:20px;">
-                    The preprocessing stage transforms classical pixel coordinates into a <strong>Magnitude-Hierarchical
-                        Representation</strong>.
-                    Unlike standard quantum images (FRQI/NEQR) that use global position registers, MHRQI decomposes the
-                    image into
-                    nested quadrants (or qudits), where each level of the hierarchy represents a specific scale of
-                    spatial information.
-                </p>
-            </div>
-        </section>
-
-        <section id="preprocessing">
-            <h2 class="ui-text">02 // Preprocessing: The HCV Vector</h2>
+        <!-- Overview -->
+        <section id="hcv-overview">
+            <h2 class="ui-text">Hierarchical Coordinate Vector (HCV)</h2>
             <div class="wireframe-box">
                 <p>
-                    The <strong>Hierarchical Coordinate Vector (HCV)</strong> is the core data structure of MHRQI.
-                    It maps a pixel's $(x,y)$ position to a sequence of local quadrant indices $Q_k$ across $L$ levels.
-                    This allows for <strong>scale-agnostic operations</strong> and efficient denoising through local
-                    diffusion.
+                    The first step in the MHRQI pipeline is mapping classical Cartesian coordinates \((r, c)\) to a
+                    hierarchical path. This path encodes the pixel's position as a sequence of quadrant selections
+                    at each level of a quad-tree decomposition.
+                </p>
+            </div>
+        </section>
+
+        <!-- Math Explanation -->
+        <section id="hcv-math">
+            <h2 class="ui-text">Mathematical Formulation</h2>
+            <div class="wireframe-box">
+                <h3 style="font-size: 0.95rem; margin-top: 0;">Hierarchy Depth</h3>
+                <p>For an \(N \times N\) image with subdivision factor \(d=2\) (quad-tree):</p>
+                <div class="content-block"
+                    style="text-align: center; margin: 15px 0; padding: 15px; background: #f9f9f9;">
+                    <p style="font-size: 1.1rem;">
+                        \[ L_{\max} = \lfloor \log_d(N) \rfloor \]
+                    </p>
+                </div>
+                <p style="font-size: 0.85rem;">
+                    <strong>Example:</strong> For a 256×256 image: \(L_{\max} = \log_2(256) = 8\) levels.
                 </p>
 
-                <div class="explorer-grid" style="margin-top: 30px;">
-                    <div class="vis-container">
-                        <div>
-                            <div class="ui-text" style="font-size:0.7rem; margin-bottom:5px;">CLASSICAL.GRID [N x N]
-                            </div>
-                            <div class="grid-wrapper" id="pixelGrid" style="position:relative;">
-                                <div id="gridOverlay" class="grid-overlay"></div>
-                            </div>
-                            <p style="font-size:0.7rem; color:var(--dim-color); text-align:center; margin-top:5px;">
-                                [HOLD PIXEL TO EXPLODE QUANTUM TREE]
-                            </p>
-                        </div>
-                        <div>
-                            <div class="ui-text" style="font-size:0.7rem; margin-bottom:5px;">QUANTUM.TREE [ISO-STACK]
-                            </div>
-                            <div class="level-viewport" id="levelViewport">
-                                <div class="level-indicator" id="levelIndicator">LEVEL 0</div>
-                                <div class="iso-container mode-flat" id="isoContainer"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="info-panel">
-                        <div class="ui-text"
-                            style="border-bottom:1px solid #000; padding-bottom:5px; margin-bottom:15px; font-size:0.8rem;">
-                            HCV ANALYSIS</div>
-                        <div id="defaultMsg" style="color:#666; font-style:italic; font-size:0.8rem;">Select a pixel to
-                            trace its hierarchical path.</div>
-                        <div id="mathContent" style="display:none;"></div>
+                <h3 style="font-size: 0.95rem; margin-top: 25px;">Subdivision Size</h3>
+                <p>At each level \(k\), the subdivision size is:</p>
+                <div class="content-block"
+                    style="text-align: center; margin: 15px 0; padding: 15px; background: #f9f9f9;">
+                    <p style="font-size: 1.1rem;">
+                        \[ s_k = \frac{N}{d^k} \]
+                    </p>
+                </div>
 
-                        <div class="controls" style="margin-top:20px; flex-wrap:wrap;">
-                            <div class="input-group">
-                                <label>SIZE (N)</label>
-                                <input type="number" id="inputN" value="8" min="2" max="32">
-                            </div>
-                            <div class="input-group">
-                                <label>SUB (d)</label>
-                                <input type="number" id="inputD" value="2" min="2" max="8">
-                            </div>
-                            <button id="regenBtn" style="font-size:0.7rem; padding: 5px 10px;">REGEN</button>
-                        </div>
-                        <span id="errorMsg" style="color:red; font-size:0.7rem;"></span>
-                    </div>
+                <h3 style="font-size: 0.95rem; margin-top: 25px;">Quadrant Register Computation</h3>
+                <p>At each level \(k\), compute the local quadrant indices \((q_y, q_x)\):</p>
+                <div class="content-block"
+                    style="text-align: center; margin: 15px 0; padding: 15px; background: #f9f9f9;">
+                    <p style="font-size: 1rem;">
+                        \[ q_y^{(k)} = \left\lfloor \frac{r \mod s_{k-1}}{s_k} \right\rfloor \]
+                        \[ q_x^{(k)} = \left\lfloor \frac{c \mod s_{k-1}}{s_k} \right\rfloor \]
+                    </p>
+                </div>
+
+                <h3 style="font-size: 0.95rem; margin-top: 25px;">HCV Construction</h3>
+                <p>The complete Hierarchical Coordinate Vector is:</p>
+                <div class="content-block"
+                    style="text-align: center; margin: 15px 0; padding: 15px; background: #f0f8ff; border: 1px solid #cce;">
+                    <p style="font-size: 1rem;">
+                        \[ \text{HCV}(r,c) = \left[ q_y^{(0)}, q_x^{(0)}, q_y^{(1)}, q_x^{(1)}, \ldots,
+                        q_y^{(L_{\max}-1)}, q_x^{(L_{\max}-1)} \right] \]
+                    </p>
+                </div>
+                <p style="font-size: 0.85rem;">
+                    Each pair \((q_y^{(k)}, q_x^{(k)})\) maps to a pair of position qubits in the quantum circuit.
+                </p>
+            </div>
+        </section>
+
+        <!-- Worked Example -->
+        <section id="hcv-example">
+            <h2 class="ui-text">Worked Example</h2>
+            <div class="wireframe-box">
+                <div class="content-block"
+                    style="font-family: monospace; font-size: 0.85rem; background:#f9f9f9; padding:15px; line-height:1.8;">
+                    <strong>Given:</strong> Pixel at (r=3, c=3) in an 8×8 image<br><br>
+
+                    <strong>Step 1:</strong> Calculate L_max<br>
+                    L_max = log₂(8) = 3 levels<br><br>
+
+                    <strong>Step 2:</strong> Level 0 (s₀ = 8, s₁ = 4)<br>
+                    q_y⁽⁰⁾ = floor((3 mod 8) / 4) = floor(3/4) = 0<br>
+                    q_x⁽⁰⁾ = floor((3 mod 8) / 4) = floor(3/4) = 0<br><br>
+
+                    <strong>Step 3:</strong> Level 1 (s₁ = 4, s₂ = 2)<br>
+                    q_y⁽¹⁾ = floor((3 mod 4) / 2) = floor(3/2) = 1<br>
+                    q_x⁽¹⁾ = floor((3 mod 4) / 2) = floor(3/2) = 1<br><br>
+
+                    <strong>Step 4:</strong> Level 2 (s₂ = 2, s₃ = 1)<br>
+                    q_y⁽²⁾ = floor((3 mod 2) / 1) = floor(1/1) = 1<br>
+                    q_x⁽²⁾ = floor((3 mod 2) / 1) = floor(1/1) = 1<br><br>
+
+                    <strong>Result:</strong> HCV(3,3) = [0, 0, 1, 1, 1, 1]<br>
+                    <em>Path: Top-left quadrant → Bottom-right sub-quadrant → Bottom-right pixel</em>
                 </div>
             </div>
         </section>
+
+        <!-- Inverse Mapping -->
+        <section id="inverse-mapping">
+            <h2 class="ui-text">Inverse Mapping (compose_rc)</h2>
+            <div class="wireframe-box">
+                <p>To reconstruct coordinates from an HCV:</p>
+                <div class="content-block"
+                    style="text-align: center; margin: 15px 0; padding: 15px; background: #f9f9f9;">
+                    <p style="font-size: 1rem;">
+                        \[ r = \sum_{k=0}^{L_{\max}-1} q_y^{(k)} \cdot d^{L_{\max}-1-k} \]
+                        \[ c = \sum_{k=0}^{L_{\max}-1} q_x^{(k)} \cdot d^{L_{\max}-1-k} \]
+                    </p>
+                </div>
+                <p style="font-size: 0.85rem;">
+                    <strong>Code:</strong> <code>compose_rc(hcv, d=2)</code> in
+                    <a href="https://github.com/Keno-00/MHRQI/blob/main/utils.py" style="color:#333;">utils.py</a>
+                </p>
+            </div>
+        </section>
+
+        <!-- Interactive Demo -->
+        <section id="interactive-demo">
+            <h2 class="ui-text">Interactive Path Trace</h2>
+            <div class="wireframe-box">
+                <p>
+                    Select a pixel on the grid to see its HCV decomposition and quad-tree path.
+                </p>
+                <div class="controls" style="margin-top:20px; flex-wrap:wrap;">
+                    <div class="input-group">
+                        <label>SIZE (N)</label>
+                        <input type="number" id="inputN" value="8" min="2" max="32">
+                    </div>
+                    <div class="input-group">
+                        <label>SUB (d)</label>
+                        <input type="number" id="inputD" value="2" min="2" max="8">
+                    </div>
+                    <button id="regenBtn" style="font-size:0.7rem; padding: 5px 10px;">REGEN</button>
+                </div>
+                <span id="errorMsg" style="color:red; font-size:0.7rem;"></span>
+            </div>
+            <div class="explorer-grid" style="margin-top: 30px;">
+                <div class="vis-container">
+                    <div>
+                        <div class="ui-text" style="font-size:0.7rem; margin-bottom:5px;">IMAGE GRID [N × N]</div>
+                        <div class="grid-wrapper" id="pixelGrid" style="position:relative;">
+                            <div id="gridOverlay" class="grid-overlay"></div>
+                        </div>
+                        <p style="font-size:0.7rem; color:var(--dim-color); text-align:center; margin-top:5px;">
+                            [CLICK TO TRACE PATH]
+                        </p>
+                    </div>
+                    <div>
+                        <div class="ui-text" style="font-size:0.7rem; margin-bottom:5px;">HIERARCHICAL STACK</div>
+                        <div class="level-viewport" id="levelViewport">
+                            <div class="level-indicator" id="levelIndicator">LEVEL 0</div>
+                            <div class="iso-container mode-flat" id="isoContainer"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="info-panel">
+                    <div class="ui-text"
+                        style="border-bottom:1px solid #000; padding-bottom:5px; margin-bottom:15px; font-size:0.8rem;">
+                        PATH DATA</div>
+                    <div id="defaultMsg" style="color:#666; font-style:italic; font-size:0.8rem;">
+                        Select a pixel to trace its hierarchical path.
+                    </div>
+                    <div id="mathContent" style="display:none;"></div>
+
+
+                </div>
+            </div>
+    </div>
+    </section>
     </div>
 </body>
 

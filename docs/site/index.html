@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MHRQI // HOME</title>
+    <title>MHRQI // OVERVIEW</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
@@ -18,85 +18,69 @@
     <header id="mainHeader">
         <div class="container-inner">
             <div style="border-bottom: 1px solid var(--ink-color); padding-bottom: 10px; margin-bottom: 20px;">
-                <h1 style="border:none; margin:0; padding:0; font-size: 3rem; line-height: 1;">MHRQI</h1>
+                <h1 style="border:none; margin:0; padding:0; font-size: 2.5rem; line-height: 1;">MHRQI</h1>
                 <div class="subtitle-row"
-                    style="font-family: var(--font-ui); font-size: 1rem; display: flex; justify-content: space-between; align-items: flex-end;">
-                    <span>Magnitude-Hierarchical Representation of Quantum Images</span>
-                    <span style="font-size: 0.7rem; text-align: right;">SYS.VER: 2.0.4</span>
+                    style="font-family: var(--font-ui); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <span>A Hierarchical Representation for Quantum Image Processing</span>
+                    <span style="font-size: 0.7rem; text-align: right;">v2.0.4</span>
                 </div>
             </div>
             <nav class="main-nav">
-                <a href="index.html">Home</a>
+                <a href="index.html">Overview</a>
                 <a href="preprocessing.html">Preprocessing</a>
                 <a href="encoder.html">Encoder</a>
-                <a href="denoiser.html">Denoising</a>
+                <a href="denoiser.html">Denoiser</a>
                 <a href="simulation.html">Simulation</a>
+                <a href="retrieval.html">Image Retrieval</a>
                 <a href="benchmark.html">Benchmark</a>
+                <a href="findings.html">Findings</a>
+                <a href="about.html">About</a>
             </nav>
         </div>
     </header>
 
-    <div class="hero">
-        <div class="container-inner">
-            <h2 class="ui-text">MHRQI</h2>
-            <p>The Magnitude-Hierarchical Representation of Quantum Images: <br>A Scale-Agnostic Medical Imaging
-                Pipeline.
+    <div class="container" style="margin-top: 50px;">
+        <article class="narrative">
+            <p class="lead-in">
+                MHRQI (Magnitude-Hierarchical Representation of Quantum Images) is a framework developed to address
+                spatial localization and noise challenges in quantum image processing. This project, focused on B-SCAN
+                Retinal OCT images, explores the use of hierarchical trees to represent pixel data.
             </p>
-        </div>
-    </div>
 
-    <div class="container">
-        <section id="introduction">
-            <h2 class="ui-text">00 // Executive Summary</h2>
-            <div class="wireframe-box">
+            <div class="content-block">
                 <p>
-                    <strong>MHRQI</strong> is a quantum framework designed for high-fidelity medical
-                    image processing, specifically targeting **Brightness Scan (B-SCAN) Optical Coherence Tomography
-                    (OCT) Images for Retinal Imaging**.
-                    By combining <strong>Magnitude-based registration</strong> with <strong>Hierarchical
-                        decomposition</strong>,
-                    MHRQI enables efficient basis encoding and advanced noise suppression on near-term quantum
-                    hardware.
+                    Traditional representations often treat an image as a flat bitstring, where local changes can
+                    impact the global state representation. MHRQI decomposes the image into a recursive quad-tree
+                    structure using hierarchical qubit registers, allowing for localized operations and hierarchical
+                    consistency checks.
+                </p>
+                <p>
+                    The pipeline consists of five primary stages: coordinate remapping (HCV), circuit initialization,
+                    basis-encoded intensity upload, unitary consistency marking (denoising), and statistical image
+                    retrieval. Each stage is designed to be implemented as a reversible quantum circuit.
                 </p>
             </div>
-        </section>
 
-        <section id="problem">
-            <div class="problem-statement">
-                <h3 class="ui-text">Statement of the Problem</h3>
-                <p>
-                    "Medical imaging requires precise edge preservation while suppressing complex noise.
-                    Traditional quantum image representations (FRQI/NEQR) suffer from global dependency—small local
-                    shifts
-                    corrupt the entire state. MHRQI solves this by localizing information within a
-                    magnitude-hierarchical tree,
-                    addressing **technical discontinuities at block boundaries** through hierarchical neighbor
-                    correlation."
-                </p>
-            </div>
-        </section>
-
-        <section id="workflow">
-            <h2 class="ui-text">01 // Overall System Architecture</h2>
-            <div class="wireframe-box">
+            <div class="wireframe-box" style="margin: 40px 0;">
+                <div class="ui-text" style="font-size: 0.7rem; margin-bottom: 15px; border-bottom: 1px solid #eee;">
+                    OVERALL SYSTEM ARCHITECTURE</div>
                 <div class="mermaid">
                     graph LR
-                    Input["Input Image"] -- "[N x N]" --> Pre["Preprocessing (HCV)"]
-                    Pre --> Core
-                    subgraph Core ["CORE SYSTEM PIPELINE"]
-                    Encod["Basis Encoder"] -- "MHRQI-B" --> Den["Unitary Denoising"]
-                    Den -- "Correlation" --> Sim["Simulator Interface"]
-                    Sim -- "Aer/GPU" --> Ret["Hierarchical Retrieval"]
-                    end
-                    Ret --> Bench["Metric Benchmarking"]
+                    Input["Input Image"] --> Prep["Preprocessing System"]
+                    Prep --> Encoder["Encoding System"]
+                    Encoder --> Denoise["Denoising System"]
+                    Denoise --> Sim["Simulation System"]
+                    Sim --> Retrieval["Image Retrieval System"]
+                    Retrieval --> Benchmark["Benchmark System"]
                 </div>
-                <p>
-                    The MHRQI pipeline translates classical pixel data into a hierarchical quantum state, performs
-                    unitary denoising via hierarchical coupling, and reconstructs the image through multi-level
-                    statistical sampling.
-                </p>
             </div>
-        </section>
+
+            <p>
+                Current results indicate that hierarchical representations can effectively manage certain types of
+                speckle noise common in medical imaging, though the implementation remains limited to classical
+                simulations and small-scale quantum hardware constraints.
+            </p>
+        </article>
     </div>
 
 </body>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MHRQI // FINDINGS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fonts-cmu@1.0.0/serif/index.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="core.js" defer></script>
+</head>
+
+<body>
+    <header id="mainHeader">
+        <div class="container-inner">
+            <div style="border-bottom: 1px solid var(--ink-color); padding-bottom: 10px; margin-bottom: 20px;">
+                <h1 style="border:none; margin:0; padding:0; font-size: 2.5rem; line-height: 1;">MHRQI</h1>
+                <div class="subtitle-row"
+                    style="font-family: var(--font-ui); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <span>A Hierarchical Representation for Quantum Image Processing</span>
+                    <span style="font-size: 0.7rem; text-align: right;">v2.0.4</span>
+                </div>
+            </div>
+            <nav class="main-nav">
+                <a href="index.html">Overview</a>
+                <a href="preprocessing.html">Preprocessing</a>
+                <a href="encoder.html">Encoder</a>
+                <a href="denoiser.html">Denoiser</a>
+                <a href="simulation.html">Simulation</a>
+                <a href="retrieval.html">Image Retrieval</a>
+                <a href="benchmark.html">Benchmark</a>
+                <a href="findings.html">Findings</a>
+                <a href="about.html">About</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container" style="margin-top: 50px;">
+        <article class="narrative">
+            <h2 style="border-bottom: 1px solid #eee; padding-bottom: 10px;">Summary of Findings</h2>
+
+            <div class="content-block">
+                <h3 style="font-size: 1.1rem; font-weight: 600; margin-top: 30px;">Strengths</h3>
+                <ul style="line-height: 1.8;">
+                    <li>Hierarchical encoding localizes pixel information, potentially reducing global state corruption
+                        from local perturbations</li>
+                    <li>Comparable speckle reduction performance on OCT imagery for certain metrics (SSI, SMPI)</li>
+                    <li>Outcome-weighted reconstruction preserves structural information while suppressing noise in
+                        homogeneous regions</li>
+                </ul>
+
+                <h3 style="font-size: 1.1rem; font-weight: 600; margin-top: 30px;">Limitations</h3>
+                <ul style="line-height: 1.8;">
+                    <li><strong>Simulation Only:</strong> All results are from classical simulation (Qiskit Aer). Not
+                        tested on real quantum hardware</li>
+                    <li><strong>Scalability:</strong> Circuit depth and qubit requirements scale with image size
+                        (2×L_max + 11 qubits; e.g., 27 for 256×256)</li>
+                    <li><strong>Performance Variability:</strong> Results vary across different noise types and image
+                        characteristics</li>
+                    <li><strong>Execution Time:</strong> Statevector simulation is computationally intensive for images
+                        larger than 256×256</li>
+                </ul>
+
+                <h3 style="font-size: 1.1rem; font-weight: 600; margin-top: 30px;">Open Questions</h3>
+                <ul style="line-height: 1.8;">
+                    <li>How does this approach perform on real quantum hardware with noise and limited connectivity?
+                    </li>
+                    <li>Can the consistency check be extended to multi-level hierarchy comparisons?</li>
+                    <li>What is the optimal trade-off between qubit count and hierarchical depth?</li>
+                </ul>
+            </div>
+
+            <div class="wireframe-box" style="margin-top: 40px; padding: 20px; background: #f9f9f9;">
+                <p style="font-size: 0.85rem; font-style: italic; text-align: center;">
+                    This project represents an undergraduate thesis exploring quantum approaches to image processing.
+                    Results should be interpreted as preliminary findings from simulation-based experiments.
+                </p>
+            </div>
+        </article>
+    </div>
+
+</body>
+
+</html>

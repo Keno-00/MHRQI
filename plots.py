@@ -505,6 +505,180 @@ def compute_smpi(img_original, img_filtered):
     smpi = q * (np.sqrt(var_f) / np.sqrt(var_o))
     return float(smpi)
 
+def compute_omqdi(img_noisy, img_denoised):
+    """
+    Compute OMQDI (Objective Measure of Quality of Denoised Images).
+    DOI: 10.1016/j.bspc.2021.102962
+    
+    Args:
+        img_noisy: Noisy input image (single channel)
+        img_denoised: Denoised output image (single channel)
+    
+    Returns:
+        tuple: (OMQDI, EPF, NSF)
+            - OMQDI: Combined metric Q1+Q2, ideal value is 2, range [1,2]
+            - EPF: Edge-Preservation Factor (Q1), ideal value is 1, range [0,1]
+            - NSF: Noise-Suppression Factor (Q2), ideal value is 1, range [0,1]
+    """
+    from IQA import OMQDI
+    
+    noisy = _to_float_array(img_noisy)
+    denoised = _to_float_array(img_denoised)
+    
+    # Normalize to 0-1 if needed
+    if noisy.max() > 1.0:
+        noisy = noisy / 255.0
+    if denoised.max() > 1.0:
+        denoised = denoised / 255.0
+    
+    try:
+        omqdi_val, epf, nsf = OMQDI(noisy, denoised)
+        return (float(omqdi_val), float(epf), float(nsf))
+    except Exception:
+        return (float('nan'), float('nan'), float('nan'))
+
+def compute_enl(img, roi=None):
+    """
+    Compute Equivalent Number of Looks (ENL).
+    ENL = mean² / variance
+    Higher values indicate better speckle suppression in homogeneous regions.
+    
+    Args:
+        img: Input image
+        roi: Optional tuple (y, x, h, w) for region of interest
+    
+    Returns:
+        ENL value (higher is better)
+    
+    Citation: Ulaby et al., 1986
+    """
+    arr = _to_float_array(img)
+    
+    if roi is not None:
+        y, x, h, w = roi
+        region = arr[y:y+h, x:x+w]
+    else:
+        region = arr
+    
+    mean_val = np.mean(region)
+    var_val = np.var(region)
+    
+    if var_val == 0:
+        return float('inf')
+    
+    return float((mean_val ** 2) / var_val)
+
+def compute_epi(img_original, img_denoised):
+    """
+    Compute Edge Preservation Index (EPI).
+    EPI = correlation of gradient magnitudes between original and denoised.
+    Higher values indicate better edge preservation.
+    
+    Citation: Sattar et al., 1997
+    """
+    import cv2
+    
+    orig = _to_float_array(img_original)
+    denoised = _to_float_array(img_denoised)
+    
+    # Ensure uint8 for Sobel
+    orig_u8 = (orig * 255).astype(np.uint8) if orig.max() <= 1.0 else orig.astype(np.uint8)
+    den_u8 = (denoised * 255).astype(np.uint8) if denoised.max() <= 1.0 else denoised.astype(np.uint8)
+    
+    # Compute Sobel gradients
+    gx_o = cv2.Sobel(orig_u8, cv2.CV_64F, 1, 0, ksize=3)
+    gy_o = cv2.Sobel(orig_u8, cv2.CV_64F, 0, 1, ksize=3)
+    grad_orig = np.sqrt(gx_o**2 + gy_o**2)
+    
+    gx_d = cv2.Sobel(den_u8, cv2.CV_64F, 1, 0, ksize=3)
+    gy_d = cv2.Sobel(den_u8, cv2.CV_64F, 0, 1, ksize=3)
+    grad_den = np.sqrt(gx_d**2 + gy_d**2)
+    
+    # Correlation coefficient
+    corr = np.corrcoef(grad_orig.flatten(), grad_den.flatten())[0, 1]
+    return float(corr) if not np.isnan(corr) else 0.0
+
+def auto_detect_rois(img):
+    """
+    Auto-detect signal and background ROIs for CNR calculation.
+    
+    Signal ROI: High intensity region (top 10% of image)
+    Background ROI: Low variance homogeneous region
+    
+    Returns:
+        signal_roi: (y, x, h, w) tuple
+        bg_roi: (y, x, h, w) tuple
+    """
+    arr = _to_float_array(img)
+    h, w = arr.shape
+    
+    # Use 16x16 blocks
+    block_size = min(16, h // 4, w // 4)
+    if block_size < 4:
+        block_size = 4
+    
+    # Find signal region (high intensity)
+    threshold = np.percentile(arr, 90)
+    signal_mask = arr > threshold
+    
+    # Find centroid of high-intensity region
+    y_coords, x_coords = np.where(signal_mask)
+    if len(y_coords) > 0:
+        cy, cx = int(np.mean(y_coords)), int(np.mean(x_coords))
+        # Clamp to valid range
+        sy = max(0, min(cy - block_size // 2, h - block_size))
+        sx = max(0, min(cx - block_size // 2, w - block_size))
+        signal_roi = (sy, sx, block_size, block_size)
+    else:
+        signal_roi = (0, 0, block_size, block_size)
+    
+    # Find background region (lowest variance block)
+    best_var = float('inf')
+    bg_roi = (0, 0, block_size, block_size)
+    
+    for y in range(0, h - block_size, block_size // 2):
+        for x in range(0, w - block_size, block_size // 2):
+            block = arr[y:y+block_size, x:x+block_size]
+            var = np.var(block)
+            if var < best_var and var > 0:
+                best_var = var
+                bg_roi = (y, x, block_size, block_size)
+    
+    return signal_roi, bg_roi
+
+def compute_cnr(img, signal_roi=None, bg_roi=None):
+    """
+    Compute Contrast-to-Noise Ratio (CNR).
+    CNR = |mean_signal - mean_bg| / std_bg
+    Higher values indicate better contrast.
+    
+    If ROIs not provided, auto-detects them.
+    
+    Returns:
+        cnr_value: float
+        signal_roi: (y, x, h, w)
+        bg_roi: (y, x, h, w)
+    """
+    arr = _to_float_array(img)
+    
+    if signal_roi is None or bg_roi is None:
+        signal_roi, bg_roi = auto_detect_rois(arr)
+    
+    sy, sx, sh, sw = signal_roi
+    by, bx, bh, bw = bg_roi
+    
+    signal_region = arr[sy:sy+sh, sx:sx+sw]
+    bg_region = arr[by:by+bh, bx:bx+bw]
+    
+    mean_signal = np.mean(signal_region)
+    mean_bg = np.mean(bg_region)
+    std_bg = np.std(bg_region)
+    
+    if std_bg == 0:
+        return (float('inf'), signal_roi, bg_roi)
+    
+    cnr = abs(mean_signal - mean_bg) / std_bg
+    return (float(cnr), signal_roi, bg_roi)
 
 
 # =============================================================================
@@ -586,7 +760,7 @@ class MetricsPlotter:
         names = [m["name"] for m in table_methods]
 
         # Compute Ranks
-        higher_better = {"FSIM", "SSIM", "DR-IQA"}
+        higher_better = {"OMQDI", "EPF", "ENL", "EPI", "CNR"}  # Higher is better
         ranks = {k: {} for k in metric_keys}
 
         for k in metric_keys:

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MHRQI // DENOISING</title>
+    <title>MHRQI // DENOISER</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
@@ -18,63 +18,334 @@
 <body>
     <header id="mainHeader">
         <div class="container-inner">
-            <div style="border-bottom: 4px solid var(--ink-color); padding-bottom: 20px; margin-bottom: 20px;">
-                <h1 style="border:none; margin:0; padding:0; font-size: 3rem; line-height: 1;">MHRQI</h1>
+            <div style="border-bottom: 1px solid var(--ink-color); padding-bottom: 10px; margin-bottom: 20px;">
+                <h1 style="border:none; margin:0; padding:0; font-size: 2.5rem; line-height: 1;">MHRQI</h1>
                 <div class="subtitle-row"
-                    style="font-family: var(--font-ui); font-size: 1rem; display: flex; justify-content: space-between; align-items: flex-end;">
-                    <span>Magnitude-Hierarchical Representation of Quantum Images</span>
-                    <span style="font-size: 0.7rem; text-align: right;">SYS.VER: 2.0.4</span>
+                    style="font-family: var(--font-ui); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <span>A Hierarchical Representation for Quantum Image Processing</span>
+                    <span style="font-size: 0.7rem; text-align: right;">v2.0.4</span>
                 </div>
             </div>
             <nav class="main-nav">
-                <a href="index.html">Home</a>
+                <a href="index.html">Overview</a>
                 <a href="preprocessing.html">Preprocessing</a>
                 <a href="encoder.html">Encoder</a>
-                <a href="denoiser.html">Denoising</a>
+                <a href="denoiser.html">Denoiser</a>
                 <a href="simulation.html">Simulation</a>
+                <a href="retrieval.html">Image Retrieval</a>
                 <a href="benchmark.html">Benchmark</a>
+                <a href="findings.html">Findings</a>
+                <a href="about.html">About</a>
             </nav>
         </div>
     </header>
 
     <div class="container">
-
-        <section id="denoiser">
-            <h2 class="ui-text">04 // Denoising System: Level-by-Level Diffusion</h2>
+        <!-- Overview -->
+        <section id="denoiser-overview">
+            <h2 class="ui-text">Denoising Pipeline</h2>
             <div class="wireframe-box">
-                <div class="mermaid">
-                    graph LR
-                    In["Encoded State"] --> Diff["Unitary Diffusion"]
-                    subgraph Smoothing_Levels ["Hierarchical Smoothing Control"]
-                    Diff --> L0["Global (Coarse)"]
-                    Diff --> Lk["Local (Fine)"]
-                    end
-                    Lk --> Out["Denoised State"]
-                    L0 --> Out
-                    Out -- "Weighting" --> Recon["Weighted Reconstruction"]
-                </div>
                 <p>
-                    The MHRQI denoiser implements <strong>Unitary Diffusion</strong> through partial Grover reflections.
-                    By coupling sibling blocks at each hierarchy level through quantum interference, the system
-                    effectively
-                    addresses <strong>boundary discontinuities</strong> (seams). Smooth regions are averaged within
-                    hierarchical sectors while structured regions (edges) are preserved via phase masking.
+                    The MHRQI denoiser compares each pixel's intensity to its <strong>parent block average</strong>.
+                    Pixels that deviate significantly are marked in the <strong>outcome qubit</strong>, flagging
+                    them for smoothing during reconstruction.
                 </p>
-                <div class="explorer-grid" style="margin-top: 30px;">
-                    <div style="max-width:300px; margin:0 auto;">
-                        <div class="ui-text" style="font-size:0.7rem; margin-bottom:5px;">INTERACTIVE.PROBE [4 x 4]
-                        </div>
-                        <div class="grid-wrapper" id="pixelGrid" style="max-width:200px; background-size: 50px 50px;">
-                        </div>
-                        <p style="font-size:0.6rem; color:#888; text-align:center; margin-top:5px;">[CLICK PIXEL TO
-                            ANALYZE DIFFUSION]</p>
-                    </div>
-                    <div id="homogeneityExplorer" class="wireframe-box"
-                        style="background:#f9f9f9; text-align:center; padding: 20px;">
-                        <p style="font-family:var(--font-ui); font-size:0.8rem;">[SELECT PIXEL TO ANALYZE DIFFUSION]
-                        </p>
+                <div class="content-block"
+                    style="background:#f9f9f9; padding:15px; margin:20px 0; border-left:3px solid #333;">
+                    <p style="margin:0;">
+                        <strong>Key Insight:</strong> Real edges are consistent at multiple hierarchy levels.
+                        Noise appears random and inconsistent with parent averages.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5-Step Algorithm -->
+        <section id="algorithm">
+            <h2 class="ui-text">Denoising Algorithm (5 Steps)</h2>
+            <div class="wireframe-box">
+
+                <!-- Step 1 -->
+                <div class="content-block" style="margin-bottom:20px; padding:15px; border:1px solid #eee;">
+                    <h3 style="font-size:0.95rem; margin:0 0 10px 0;">Step 1: Sibling Superposition</h3>
+                    <p style="font-size:0.85rem; margin:0;">
+                        Apply Hadamard gates to the finest-level position qubits. This creates a superposition
+                        over 4 sibling pixels that share the same parent block.
+                    </p>
+                    <div style="text-align:center; margin-top:10px; font-family:monospace; font-size:0.8rem;">
+                        H(q_y_finest) ⊗ H(q_x_finest)
                     </div>
                 </div>
+
+                <!-- Step 2 -->
+                <div class="content-block" style="margin-bottom:20px; padding:15px; border:1px solid #eee;">
+                    <h3 style="font-size:0.95rem; margin:0 0 10px 0;">Step 2: Parent Average Encoding</h3>
+                    <p style="font-size:0.85rem; margin:0;">
+                        Encode a weighted average of sibling intensities into an ancilla qubit using controlled-RY
+                        rotations.
+                        The MSB bits contribute most:
+                    </p>
+                    <div style="text-align:center; margin-top:10px; font-size:0.85rem;">
+                        $$ CRY(\pi/16, I_7 \rightarrow ancilla) $$
+                        $$ CRY(\pi/8, I_6 \rightarrow ancilla) $$
+                        $$ CRY(\pi/4, I_5 \rightarrow ancilla) $$
+                        $$ CRY(\pi/2, I_4 \rightarrow ancilla) $$
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="content-block" style="margin-bottom:20px; padding:15px; border:1px solid #eee;">
+                    <h3 style="font-size:0.95rem; margin:0 0 10px 0;">Step 3: Uncompute Superposition</h3>
+                    <p style="font-size:0.85rem; margin:0;">
+                        Apply Hadamard gates again to collapse the sibling superposition back to individual pixels.
+                        The ancilla now holds the average encoded in its rotation angle.
+                    </p>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="content-block" style="margin-bottom:20px; padding:15px; border:1px solid #eee;">
+                    <h3 style="font-size:0.95rem; margin:0 0 10px 0;">Step 4: XNOR Comparison</h3>
+                    <p style="font-size:0.85rem; margin:0;">
+                        Compare the pixel's MSB with the parent average using XNOR logic (CCX gates).
+                        If they match, the pixel is consistent. If not, it's flagged.
+                    </p>
+                    <div style="text-align:center; margin-top:10px; font-family:monospace; font-size:0.8rem;">
+                        consistency = (pixel_MSB == parent_avg_MSB)
+                    </div>
+                </div>
+
+                <!-- Step 5 -->
+                <div class="content-block"
+                    style="margin-bottom:20px; padding:15px; border:1px solid #eee; background:#fffef0;">
+                    <h3 style="font-size:0.95rem; margin:0 0 10px 0;">Step 5: Mark Outcome Qubit</h3>
+                    <p style="font-size:0.85rem; margin:0;">
+                        Transfer the comparison result to the <strong>outcome qubit</strong>:
+                    </p>
+                    <div style="margin-top:10px; font-size:0.85rem;">
+                        <strong>Outcome = 0:</strong> Pixel is consistent → preserve during reconstruction<br>
+                        <strong>Outcome = 1:</strong> Pixel is inconsistent → smooth with neighbors
+                    </div>
+                </div>
+
+                <!-- Flowchart -->
+                <div class="mermaid" style="margin-top:20px;">
+                    graph TD
+                    A["H gates on finest position qubits"] --> B["CRY rotations encode parent avg"]
+                    B --> C["H gates uncompute superposition"]
+                    C --> D["CCX gates: XNOR comparison"]
+                    D --> E["CX: mark outcome qubit"]
+                    E --> F["Uncompute all except outcome"]
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive Denoiser Circuit -->
+        <section id="circuit-view">
+            <h2 class="ui-text">Interactive Circuit Explorer</h2>
+            <div class="wireframe-box" style="overflow:hidden;">
+                <p>
+                    Select an OCT image and scale to generate the complete denoiser circuit
+                    (encoder + denoiser stages).
+                </p>
+
+                <!-- Image Selection -->
+                <div style="margin: 25px 0;">
+                    <div class="ui-text" style="font-size:0.75rem; margin-bottom:10px;">SELECT IMAGE CATEGORY</div>
+                    <div id="imageButtons" style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="img-btn" data-image="cnv" onclick="selectImage('cnv')">
+                            <img src="/resources/cnv1.jpeg" alt="CNV"
+                                style="width:60px; height:60px; object-fit:cover;">
+                            <span>CNV</span>
+                        </button>
+                        <button class="img-btn" data-image="dme" onclick="selectImage('dme')">
+                            <img src="/resources/dme1.jpeg" alt="DME"
+                                style="width:60px; height:60px; object-fit:cover;">
+                            <span>DME</span>
+                        </button>
+                        <button class="img-btn" data-image="drusen" onclick="selectImage('drusen')">
+                            <img src="/resources/drusen1.jpeg" alt="Drusen"
+                                style="width:60px; height:60px; object-fit:cover;">
+                            <span>Drusen</span>
+                        </button>
+                        <button class="img-btn active" data-image="normal" onclick="selectImage('normal')">
+                            <img src="/resources/normal1.jpeg" alt="Normal"
+                                style="width:60px; height:60px; object-fit:cover;">
+                            <span>Normal</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scale Selection -->
+                <div style="margin: 25px 0;">
+                    <div class="ui-text" style="font-size:0.75rem; margin-bottom:10px;">SELECT SCALE</div>
+                    <div style="display:flex; gap:10px;">
+                        <button class="scale-btn active" data-scale="8" onclick="selectScale(8)">8×8</button>
+                        <button class="scale-btn" data-scale="16" onclick="selectScale(16)">16×16</button>
+                    </div>
+                </div>
+
+                <!-- Generate Button -->
+                <div style="margin: 25px 0; text-align:center;">
+                    <button id="generateBtn" onclick="generateDenoiserCircuit()"
+                        style="padding:12px 30px; font-size:0.9rem;">
+                        GENERATE CIRCUIT
+                    </button>
+                </div>
+
+                <!-- Circuit Info -->
+                <div id="circuitInfo"
+                    style="display:none; margin:20px 0; padding:15px; background:#f5f5f5; border:1px solid #ddd;">
+                    <div class="ui-text" style="font-size:0.7rem; margin-bottom:10px;">CIRCUIT INFO</div>
+                    <div id="circuitInfoContent" style="font-size:0.8rem;"></div>
+                </div>
+
+                <!-- Circuit Viewer (scrollable inside fixed container) -->
+                <div id="denoiserCircuit" class="circuit-viewer">
+                    <p style="font-family:var(--font-ui); font-size:0.8rem; text-align:center; color:#666;">
+                        Select an image and click "Generate Circuit" to view the denoiser circuit.
+                    </p>
+                </div>
+            </div>
+
+            <style>
+                .img-btn {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    padding: 10px;
+                    border: 2px solid #ccc;
+                    background: #fff;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .img-btn:hover {
+                    border-color: #666;
+                }
+
+                .img-btn.active {
+                    border-color: #000;
+                    background: #f0f0f0;
+                }
+
+                .img-btn span {
+                    font-size: 0.7rem;
+                    margin-top: 5px;
+                    font-family: var(--font-ui);
+                }
+
+                .scale-btn {
+                    padding: 10px 25px;
+                    border: 2px solid #ccc;
+                    background: #fff;
+                    cursor: pointer;
+                    font-family: var(--font-ui);
+                    transition: all 0.2s;
+                }
+
+                .scale-btn:hover {
+                    border-color: #666;
+                }
+
+                .scale-btn.active {
+                    border-color: #000;
+                    background: #000;
+                    color: #fff;
+                }
+
+                .circuit-viewer {
+                    background: #f9f9f9;
+                    border: 1px solid #000;
+                    padding: 15px;
+                    min-height: 200px;
+                    /* Fixed width viewport - acts as a window */
+                    width: 100%;
+                    max-width: 800px;
+                    overflow-x: scroll;
+                    overflow-y: hidden;
+                    box-sizing: border-box;
+                    display: block;
+                    position: relative;
+                }
+
+                /* Ensure SVG doesn't push container */
+                .circuit-viewer>div {
+                    display: inline-block;
+                    min-width: max-content;
+                }
+            </style>
+
+            <script>
+                let selectedImage = 'normal';
+                let selectedScale = 8;
+
+                function selectImage(imageId) {
+                    selectedImage = imageId;
+                    document.querySelectorAll('.img-btn').forEach(btn => btn.classList.remove('active'));
+                    document.querySelector(`.img-btn[data-image="${imageId}"]`).classList.add('active');
+                }
+
+                function selectScale(scale) {
+                    selectedScale = scale;
+                    document.querySelectorAll('.scale-btn').forEach(btn => btn.classList.remove('active'));
+                    document.querySelector(`.scale-btn[data-scale="${scale}"]`).classList.add('active');
+                }
+
+                async function generateDenoiserCircuit() {
+                    const circuitEl = document.getElementById('denoiserCircuit');
+                    const infoEl = document.getElementById('circuitInfo');
+                    const infoContent = document.getElementById('circuitInfoContent');
+                    const btn = document.getElementById('generateBtn');
+
+                    btn.disabled = true;
+                    btn.textContent = 'GENERATING...';
+                    circuitEl.innerHTML = '<p style="text-align:center; color:#666;">Generating circuit (encoder + denoiser)...</p>';
+
+                    try {
+                        const res = await fetch(`/api/denoiser/circuit?image=${selectedImage}&n=${selectedScale}`);
+                        const data = await res.json();
+
+                        if (data.error) {
+                            circuitEl.innerHTML = `<p style="color:red;">${data.error}</p>`;
+                        } else {
+                            if (typeof renderCircuitSVG === 'function') {
+                                circuitEl.innerHTML = renderCircuitSVG(data);
+                            } else {
+                                circuitEl.innerHTML = '<p style="color:#666;">Circuit renderer not loaded</p>';
+                            }
+
+                            // Show info
+                            infoEl.style.display = 'block';
+                            infoContent.innerHTML = `
+                                <strong>Image:</strong> ${data.info.image.toUpperCase()}<br>
+                                <strong>Scale:</strong> ${data.info.scale}×${data.info.scale}<br>
+                                <strong>Total Qubits:</strong> ${data.info.total_qubits}<br>
+                                <strong>Total Gates:</strong> ${data.info.total_gates}<br>
+                                <strong>Includes Denoiser:</strong> Yes
+                            `;
+                        }
+                    } catch (e) {
+                        circuitEl.innerHTML = `<p style="color:red;">Error: ${e.message}</p>`;
+                    } finally {
+                        btn.disabled = false;
+                        btn.textContent = 'GENERATE CIRCUIT';
+                    }
+                }
+            </script>
+        </section>
+
+        <!-- Code Reference -->
+        <section id="code-reference">
+            <h2 class="ui-text">Code Reference</h2>
+            <div class="wireframe-box">
+                <p style="font-size: 0.85rem;">
+                    <strong>Function:</strong> <code>DENOISER()</code> in
+                    <a href="https://github.com/Keno-00/MHRQI/blob/main/circuit.py" style="color:#333;">circuit.py</a>
+                </p>
+                <p style="font-size: 0.85rem;">
+                    <strong>Experimental variant:</strong> <code>ACCIDENT_DISCOVERY()</code> uses 4-bit MSB encoding
+                    and exhibits quantizer-like behavior.
+                </p>
             </div>
         </section>
     </div>

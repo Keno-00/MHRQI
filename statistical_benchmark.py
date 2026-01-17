@@ -50,16 +50,15 @@ MEDICAL_IMAGES = [
     "resources/normal3.jpeg",
 ]
 
-# Metrics for comparison
-FULL_REF_METRICS = ["FSIM", "SSIM"]
-SPECKLE_METRICS = ["SSI", "SMPI"]
-NO_REF_METRICS = ["PIQE", "BRISQUE"]
+# Metrics for comparison (No synthetic clean reference available)
+SPECKLE_METRICS_LOWER = ["SSI", "SMPI", "NSF"]  # Lower is better
+SPECKLE_METRICS_HIGHER = ["ENL", "CNR"]  # Higher is better
+STRUCTURAL_METRICS = ["EPF", "EPI", "OMQDI"]  # Higher is better
+# NIQE computed but not reported (biased for medical images)
+ALL_SPECKLE_METRICS = SPECKLE_METRICS_LOWER + SPECKLE_METRICS_HIGHER
 
 # Methods to compare
 METHODS = ["bm3d", "nlmeans", "srad", "proposed"]
-
-# SOTA for synthetic reference
-SOTA_METHOD = "bm3d"
 
 
 def run_benchmark(n=64, strength=1.65):
@@ -115,10 +114,7 @@ def run_benchmark(n=64, strength=1.65):
         # Run comparison with BM3D as SOTA reference for FR metrics
         noisy_img = compare_to.to_float01(orig)
 
-        # First generate BM3D output as SOTA reference
-        bm3d_output = compare_to.denoise_bm3d(noisy_img)
-
-        # Run full comparison with BM3D as clean reference
+        # Run comparison (no synthetic clean reference)
         comparison_results = compare_to.compare_to(
             noisy_img,
             proposed_img=compare_to.to_float01(recon),
@@ -127,7 +123,7 @@ def run_benchmark(n=64, strength=1.65):
             save=True,
             save_prefix="denoised",
             save_dir=img_dir,
-            reference_image=bm3d_output  # BM3D as SOTA reference for FR metrics
+            reference_image=None  # No synthetic reference
         )
 
         # Extract metrics for each method
@@ -179,13 +175,14 @@ def create_results_table(all_results, metrics_dir):
     Create summary tables for all metrics.
     """
     # Aggregate metrics across all images
-    method_metrics = {m: {k: [] for k in FULL_REF_METRICS + SPECKLE_METRICS + NO_REF_METRICS}
+    all_metrics_list = ALL_SPECKLE_METRICS + STRUCTURAL_METRICS
+    method_metrics = {m: {k: [] for k in all_metrics_list}
                       for m in METHODS}
 
     for img_name, methods in all_results.items():
         for method in METHODS:
             if method in methods:
-                for metric in FULL_REF_METRICS + SPECKLE_METRICS + NO_REF_METRICS:
+                for metric in all_metrics_list:
                     val = methods[method].get(metric, float('nan'))
                     if not np.isnan(val):
                         method_metrics[method][metric].append(val)
@@ -194,7 +191,7 @@ def create_results_table(all_results, metrics_dir):
     summary = {}
     for method in METHODS:
         summary[method] = {}
-        for metric in FULL_REF_METRICS + SPECKLE_METRICS + NO_REF_METRICS:
+        for metric in all_metrics_list:
             vals = method_metrics[method][metric]
             if vals:
                 summary[method][metric] = {
@@ -206,12 +203,11 @@ def create_results_table(all_results, metrics_dir):
                 summary[method][metric] = {"mean": float('nan'), "std": float('nan'), "n": 0}
 
     # Print table
-    print("\n" + "="*80)
+    print("\n" + "="*100)
     print("BENCHMARK RESULTS (Mean ± Std across all images)")
-    print(f"SOTA Reference for FR Metrics: {SOTA_METHOD.upper()}")
-    print("="*80)
+    print("="*100)
 
-    all_metrics = FULL_REF_METRICS + SPECKLE_METRICS + NO_REF_METRICS
+    all_metrics = all_metrics_list
     header = f"{'Method':<12}" + "".join(f"{m:<15}" for m in all_metrics)
     print(header)
     print("-"*80)
@@ -238,26 +234,27 @@ def create_results_table(all_results, metrics_dir):
     # Define metric categories with hypotheses
     metric_categories = [
         {
-            "name": "Structural Similarity",
-            "metrics": FULL_REF_METRICS,
-            "higher_better": True,
-            "H0": "MHRQI achieves the same structural preservation as [competitor]",
-            "H1": "MHRQI achieves different structural preservation than [competitor]",
-        },
-        {
-            "name": "Speckle Reduction",
-            "metrics": SPECKLE_METRICS,
-            "higher_better": True,
+            "name": "Speckle Reduction (Lower Better)",
+            "metrics": SPECKLE_METRICS_LOWER,
+            "higher_better": False,  # Lower is better for SSI, SMPI, NSF
             "H0": "MHRQI achieves the same speckle reduction as [competitor]",
             "H1": "MHRQI achieves different speckle reduction than [competitor]",
         },
         {
-            "name": "Perceptual Quality (No-Reference)",
-            "metrics": NO_REF_METRICS,
-            "higher_better": False,  # Lower is better for PIQE, BRISQUE, NIQE
-            "H0": "MHRQI produces images of the same perceptual quality as [competitor]",
-            "H1": "MHRQI produces images of different perceptual quality than [competitor]",
+            "name": "Speckle Reduction (Higher Better)",
+            "metrics": SPECKLE_METRICS_HIGHER,
+            "higher_better": True,  # Higher is better for ENL
+            "H0": "MHRQI achieves the same speckle reduction as [competitor]",
+            "H1": "MHRQI achieves different speckle reduction than [competitor]",
         },
+        {
+            "name": "Structural Similarity",
+            "metrics": STRUCTURAL_METRICS,
+            "higher_better": True,  # Higher is better for EPF, EPI, OMQDI
+            "H0": "MHRQI achieves the same structural preservation as [competitor]",
+            "H1": "MHRQI achieves different structural preservation than [competitor]",
+        },
+        # Naturalness removed (NIQE computed but not reported - biased for medical images)
     ]
 
     # Store results for summary
@@ -334,9 +331,10 @@ def create_visualization(all_results, metrics_dir):
     methods = METHODS
 
     metric_groups = [
-        ("Full Reference Metrics (vs BM3D)", FULL_REF_METRICS, True),
-        ("Speckle/Consistency Metrics", SPECKLE_METRICS, True),
-        ("No-Reference Quality", NO_REF_METRICS, False),
+        ("Speckle Reduction (Lower Better)", SPECKLE_METRICS_LOWER, False),
+        ("Speckle Reduction (Higher Better)", SPECKLE_METRICS_HIGHER, True),
+        ("Structural Similarity Metrics", STRUCTURAL_METRICS, True),
+        # Naturalness removed (NIQE computed but not reported)
     ]
 
     for group_name, metrics, higher_better in metric_groups:
@@ -400,7 +398,7 @@ def create_visualization(all_results, metrics_dir):
 if __name__ == "__main__":
     print("="*60)
     print("MHRQI Statistical Benchmark")
-    print(f"SOTA Reference: {SOTA_METHOD.upper()}")
+    print("(No synthetic clean reference - degraded reference only)")
     print("="*60)
 
     # Run benchmark

@@ -17,46 +17,202 @@
 <body>
     <header id="mainHeader">
         <div class="container-inner">
-            <div style="border-bottom: 4px solid var(--ink-color); padding-bottom: 20px; margin-bottom: 20px;">
-                <h1 style="border:none; margin:0; padding:0; font-size: 3rem; line-height: 1;">MHRQI</h1>
+            <div style="border-bottom: 1px solid var(--ink-color); padding-bottom: 10px; margin-bottom: 20px;">
+                <h1 style="border:none; margin:0; padding:0; font-size: 2.5rem; line-height: 1;">MHRQI</h1>
                 <div class="subtitle-row"
-                    style="font-family: var(--font-ui); font-size: 1rem; display: flex; justify-content: space-between; align-items: flex-end;">
-                    <span>Magnitude-Hierarchical Representation of Quantum Images</span>
-                    <span style="font-size: 0.7rem; text-align: right;">SYS.VER: 2.0.4</span>
+                    style="font-family: var(--font-ui); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <span>A Hierarchical Representation for Quantum Image Processing</span>
+                    <span style="font-size: 0.7rem; text-align: right;">v2.0.4</span>
                 </div>
             </div>
             <nav class="main-nav">
-                <a href="index.html">Home</a>
+                <a href="index.html">Overview</a>
                 <a href="preprocessing.html">Preprocessing</a>
                 <a href="encoder.html">Encoder</a>
-                <a href="denoiser.html">Denoising</a>
+                <a href="denoiser.html">Denoiser</a>
                 <a href="simulation.html">Simulation</a>
+                <a href="retrieval.html">Image Retrieval</a>
                 <a href="benchmark.html">Benchmark</a>
+                <a href="findings.html">Findings</a>
+                <a href="about.html">About</a>
             </nav>
         </div>
     </header>
 
     <div class="container">
-
-        <section id="benchmark">
-            <h2 class="ui-text">07 // Benchmark System</h2>
+        <!-- Overview -->
+        <section id="benchmark-overview">
+            <h2 class="ui-text">Benchmark System</h2>
             <div class="wireframe-box">
-                <div class="mermaid">
-                    graph LR
-                    Input["Proposed Image"] --> Met["Metric Engine"]
-                    Met --> FR["Full-Ref (SSIM)"]
-                    Met --> NR["No-Ref (PIQE)"]
-                    Met --> SC["Speckle (SMPI)"]
-                    SC --> Rank["Aggregated Dashboard"]
-                </div>
                 <p>
-                    Final evaluation compares MHRQI against BM3D, NL-Means, and SRAD across structural, no-reference,
-                    and speckle-specific metrics to validate edge preservation performance.
+                    MHRQI is evaluated against classical state-of-the-art denoisers using multiple metric categories.
+                    All comparisons are performed on <strong>B-SCAN Retinal OCT images</strong> with multiplicative
+                    speckle noise.
                 </p>
-                <div id="metricExplorer" class="wireframe-box"
-                    style="background:#f9f9f9; text-align:center; padding: 20px;">
-                    <p style="font-family:var(--font-ui); font-size:0.8rem;">[METRIC PERFORMANCE RANKING]</p>
+            </div>
+        </section>
+
+        <!-- Comparison Methods -->
+        <section id="comparison-methods">
+            <h2 class="ui-text">Comparison Methods</h2>
+            <div class="wireframe-box">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0;">
+                    <div class="content-block" style="padding:15px; border:1px solid #ddd; text-align:center;">
+                        <h3 style="font-size:0.9rem; margin:0 0 10px 0;">BM3D</h3>
+                        <p style="font-size:0.75rem; margin:0; color:#666;">
+                            Block-Matching and 3D Filtering<br>
+                            <em>Golden standard for Gaussian noise</em>
+                        </p>
+                    </div>
+                    <div class="content-block" style="padding:15px; border:1px solid #ddd; text-align:center;">
+                        <h3 style="font-size:0.9rem; margin:0 0 10px 0;">NL-Means</h3>
+                        <p style="font-size:0.75rem; margin:0; color:#666;">
+                            Non-Local Means<br>
+                            <em>Patch-based neighborhood filter</em>
+                        </p>
+                    </div>
+                    <div class="content-block" style="padding:15px; border:1px solid #ddd; text-align:center;">
+                        <h3 style="font-size:0.9rem; margin:0 0 10px 0;">SRAD</h3>
+                        <p style="font-size:0.75rem; margin:0; color:#666;">
+                            Speckle Reducing Anisotropic Diffusion<br>
+                            <em>Designed for ultrasound/OCT</em>
+                        </p>
+                    </div>
                 </div>
+            </div>
+        </section>
+
+        <!-- Metrics -->
+        <section id="metrics">
+            <h2 class="ui-text">Evaluation Metrics</h2>
+            <div class="wireframe-box">
+                <h3 style="font-size: 0.95rem; margin-top: 0;">Speckle Reduction</h3>
+                <table style="width:100%; font-size:0.8rem; border-collapse:collapse; margin:15px 0;">
+                    <thead>
+                        <tr style="background:#f5f5f5;">
+                            <th style="padding:8px; border:1px solid #ddd; text-align:left;">Metric</th>
+                            <th style="padding:8px; border:1px solid #ddd; text-align:center;">Direction</th>
+                            <th style="padding:8px; border:1px solid #ddd; text-align:left;">Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding:8px; border:1px solid #ddd;"><strong>SSI</strong></td>
+                            <td style="padding:8px; border:1px solid #ddd; text-align:center;">↓ Lower</td>
+                            <td style="padding:8px; border:1px solid #ddd;">Speckle Suppression Index (CoV ratio)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:8px; border:1px solid #ddd;"><strong>SMPI</strong></td>
+                            <td style="padding:8px; border:1px solid #ddd; text-align:center;">↓ Lower</td>
+                            <td style="padding:8px; border:1px solid #ddd;">Speckle Suppression & Mean Preservation
+                                Index</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:8px; border:1px solid #ddd;"><strong>ENL</strong></td>
+                            <td style="padding:8px; border:1px solid #ddd; text-align:center;">↑ Higher</td>
+                            <td style="padding:8px; border:1px solid #ddd;">Equivalent Number of Looks (mean²/variance)
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:8px; border:1px solid #ddd;"><strong>CNR</strong></td>
+                            <td style="padding:8px; border:1px solid #ddd; text-align:center;">↑ Higher</td>
+                            <td style="padding:8px; border:1px solid #ddd;">Contrast-to-Noise Ratio</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3 style="font-size: 0.95rem; margin-top: 25px;">Structural Preservation</h3>
+                <table style="width:100%; font-size:0.8rem; border-collapse:collapse; margin:15px 0;">
+                    <thead>
+                        <tr style="background:#f5f5f5;">
+                            <th style="padding:8px; border:1px solid #ddd; text-align:left;">Metric</th>
+                            <th style="padding:8px; border:1px solid #ddd; text-align:center;">Direction</th>
+                            <th style="padding:8px; border:1px solid #ddd; text-align:left;">Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding:8px; border:1px solid #ddd;"><strong>EPF</strong></td>
+                            <td style="padding:8px; border:1px solid #ddd; text-align:center;">↑ Higher</td>
+                            <td style="padding:8px; border:1px solid #ddd;">Edge Preservation Factor (wavelet-based)
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding:8px; border:1px solid #ddd;"><strong>EPI</strong></td>
+                            <td style="padding:8px; border:1px solid #ddd; text-align:center;">↑ Higher</td>
+                            <td style="padding:8px; border:1px solid #ddd;">Edge Preservation Index (Sobel gradient
+                                correlation)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:8px; border:1px solid #ddd;"><strong>OMQDI</strong></td>
+                            <td style="padding:8px; border:1px solid #ddd; text-align:center;">↑ Higher</td>
+                            <td style="padding:8px; border:1px solid #ddd;">Objective Measure of Quality of Denoised
+                                Images</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Results -->
+        <section id="results">
+            <h2 class="ui-text">Sample Results</h2>
+            <div class="wireframe-box">
+                <p>
+                    Below are sample benchmark reports from a recent run comparing MHRQI against classical methods.
+                </p>
+                <div style="margin: 20px 0; text-align: center;">
+                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">
+                        <em>Run benchmark scripts to generate comparison images. See <code>compare_to.py</code> and
+                            <code>statistical_benchmark.py</code>.</em>
+                    </p>
+                </div>
+                <div class="content-block" style="background:#f9f9f9; padding:20px; margin:20px 0;">
+                    <h4 style="font-size:0.85rem; margin:0 0 15px 0;">Running the Benchmark</h4>
+                    <pre style="background:#333; color:#fff; padding:15px; overflow-x:auto; font-size:0.8rem;">
+# Single image comparison
+python compare_to.py
+
+# Statistical benchmark (9 images, Wilcoxon tests)
+python statistical_benchmark.py</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Statistical Testing -->
+        <section id="statistical-testing">
+            <h2 class="ui-text">Statistical Testing</h2>
+            <div class="wireframe-box">
+                <p>
+                    The <code>statistical_benchmark.py</code> script performs <strong>Wilcoxon signed-rank
+                        tests</strong>
+                    across 9 medical images to assess statistical significance.
+                </p>
+                <div class="content-block" style="padding:15px; margin:15px 0; border:1px solid #ddd;">
+                    <p style="font-size:0.85rem; margin:0;">
+                        <strong>Null hypothesis:</strong> No difference between MHRQI and competitor on a given
+                        metric.<br>
+                        <strong>Alternative:</strong> MHRQI performs differently (better or worse).<br>
+                        <strong>Significance level:</strong> α = 0.05
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Code Reference -->
+        <section id="code-reference">
+            <h2 class="ui-text">Code Reference</h2>
+            <div class="wireframe-box">
+                <p style="font-size: 0.85rem;">
+                    <strong>Single comparison:</strong> <a
+                        href="https://github.com/Keno-00/MHRQI/blob/main/compare_to.py"
+                        style="color:#333;">compare_to.py</a><br>
+                    <strong>Batch benchmark:</strong> <a
+                        href="https://github.com/Keno-00/MHRQI/blob/main/statistical_benchmark.py"
+                        style="color:#333;">statistical_benchmark.py</a><br>
+                    <strong>Metric implementations:</strong> <a href="https://github.com/Keno-00/MHRQI/blob/main/IQA.py"
+                        style="color:#333;">IQA.py</a>
+                </p>
             </div>
         </section>
     </div>

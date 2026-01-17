@@ -1,45 +1,55 @@
 # Benchmarking & Metrics
 
-MHRQI is evaluated against state-of-the-art classical image processing methods.
+MHRQI is evaluated against state-of-the-art classical image processing methods for OCT speckle denoising.
+
+## Target Scenario
+
+- **No clean reference image** available (real medical imaging scenario)
+- **Multiplicative speckle noise** in OCT B-scans
+- **No training datasets** required for any metric
 
 ## Comparison Baselines
 
-- **BM3D (Block-Matching and 3D filtering):** The "golden standard" for classical denoising.
-- **NL-Means (Non-Local Means):** A patch-based filter.
-- **SRAD (Speckle Reducing Anisotropic Diffusion):** Designed for ultrasound/OCT speckle noise.
+- **BM3D** (Block-Matching and 3D filtering) — Golden standard for Gaussian denoising
+- **NL-Means** (Non-Local Means) — Patch-based filter
+- **SRAD** (Speckle Reducing Anisotropic Diffusion) — Designed for ultrasound/OCT speckle
 
-## Core Metrics
+---
 
-We use three categories of metrics:
+## Metric Categories
 
-### 1. Full-Reference (FR)
-Requires a "noise-free" reference image.
-- **SSIM (Structural Similarity Index):** Measures perceptual degradation.
-- **FSIM (Feature Similarity Index):** Weights edges and phase congruency (primary benchmark).
+### 1. Speckle Reduction
 
-### 2. No-Reference (NR)
-Assesses quality without an original image.
-- **NIQE (Natural Image Quality Evaluator):** Measures "naturalness".
-- **PIQE (Perception based Image Quality Evaluator):** Measures local artifacts.
-- **BRISQUE:** Measures distortion using natural scene statistics.
+| Metric | Direction | Description | Citation |
+|--------|-----------|-------------|----------|
+| **SSI** | Lower ↓ | Speckle Suppression Index (CoV ratio) | Yu & Acton, 2002 |
+| **SMPI** | Lower ↓ | Speckle Suppression & Mean Preservation Index | Sattar et al., 2012 |
+| **NSF** | Lower ↓ | Noise-Suppression Factor (from OMQDI) | Jagalingam & Hegde, 2021 |
+| **ENL** | Higher ↑ | Equivalent Number of Looks (mean²/variance) | Ulaby et al., 1986 |
+| **CNR** | Higher ↑ | Contrast-to-Noise Ratio (auto ROI) | Standard |
 
-### 3. Speckle-Specific
-- **SMPI (Speckle Suppression and Mean Preservation Index):** Evaluates speckle removal without losing structure.
-- **SSI (Speckle Suppression Index):** Standard ratio of variance.
-- **DR-IQA:** Degraded Reference IQA combining FSIM and NIQE.
+> [!NOTE]
+> SSI can be biased toward aggressive smoothing. ENL and CNR provide balance.
+
+### 2. Structural Similarity
+
+| Metric | Direction | Description | Citation |
+|--------|-----------|-------------|----------|
+| **EPF** | Higher ↑ | Edge-Preservation Factor (wavelet-based) | Jagalingam & Hegde, 2021 |
+| **EPI** | Higher ↑ | Edge Preservation Index (Sobel gradient correlation) | Sattar et al., 1997 |
+| **OMQDI** | Higher ↑ | Objective Measure of Quality of Denoised Images | Jagalingam & Hegde, 2021 |
+
+---
 
 ## Benchmark Pipeline
 
 The `compare_to.py` script automates evaluation:
-1. Load a medical image (noisy input)
+
+1. Load a noisy OCT image
 2. Run all denoisers on the same input
 3. Calculate metrics across all categories
-4. Generate visual reports
+4. Generate visual reports (excluding noisy original from rankings)
 
-## How to Read Results
+## Statistical Testing
 
-| Metric | Better Direction |
-|--------|-----------------|
-| FSIM, SSIM | Closer to **1.0** |
-| NIQE, PIQE, BRISQUE | **Lower** values |
-| SSI, SMPI | **Lower** values (closer to 0) |
+The `statistical_benchmark.py` runs Wilcoxon signed-rank tests across 9 medical images to determine statistically significant differences between methods.

@@ -109,8 +109,6 @@ def compute_metrics(ref, test, roi_bg):
         "BRISQUE": plots.compute_brisque(test),
         "NIQE": plots.compute_niqe(test),
         "PIQE": plots.compute_piqe(test),
-        "FSIM": plots.compute_fsim(ref, test),
-        "DR-IQA": plots.compute_dr_iqa(ref, test),
         "SMPI": plots.compute_smpi(ref, test)
     }
 
@@ -202,16 +200,22 @@ def compare_to(image_input, proposed_img=None, methods="all",
         # -- Compute Metrics --
         m = {}
 
-        # 1. No Reference Metrics (Quality / Naturalness)
-        m["PIQE"] = plots.compute_piqe(res_img)
-        m["BRISQUE"] = plots.compute_brisque(res_img)
+        # 1. No Reference Metrics (computed but not reported)
         m["NIQE"] = plots.compute_niqe(res_img)
 
-        # 2. Speckle / Consistency Metrics (vs NOISY Input)
-        # SSI, SMPI, DR-IQA *must* compare to the Noisy Speckled image
+        # 2. Speckle Metrics (vs NOISY Input)
         m["SSI"] = plots.compute_ssi(noisy_img, res_img, roi)
         m["SMPI"] = plots.compute_smpi(noisy_img, res_img)
-        m["DR-IQA"] = plots.compute_dr_iqa(noisy_img, res_img)
+        m["ENL"] = plots.compute_enl(res_img, roi)  # Higher is better
+        cnr_result = plots.compute_cnr(res_img)
+        m["CNR"] = cnr_result[0]  # Higher is better
+        
+        # 3. Structural Metrics
+        omqdi_result = plots.compute_omqdi(noisy_img, res_img)
+        m["OMQDI"] = omqdi_result[0]  # Combined metric
+        m["EPF"] = omqdi_result[1]    # Edge-Preservation Factor (wavelet)
+        m["NSF"] = omqdi_result[2]    # Noise-Suppression Factor
+        m["EPI"] = plots.compute_epi(noisy_img, res_img)  # Edge Preservation Index (Sobel)
 
         # 3. Full Reference Metrics (vs CLEAN Reference)
         if has_clean_ref:
@@ -258,31 +262,34 @@ def compare_to(image_input, proposed_img=None, methods="all",
             include_original_in_table=False
         )
 
-    # 2. Speckle Report (vs Noisy)
-    # Includes Original in table, and uses Noisy as Reference visualization
-    plots.MetricsPlotter.print_summary_text(results, ["SSI", "SMPI", "DR-IQA"], "Speckle/Consistency Metrics (vs Noisy Input)")
+    # Filter out Original for ranking (unfair baseline comparison)
+    denoiser_results = [r for r in results if r["name"] != "Original"]
+
+    # 2. Speckle Reduction Report (includes ENL and CNR)
+    plots.MetricsPlotter.print_summary_text(denoiser_results, ["SSI", "SMPI", "NSF", "ENL", "CNR"], "Speckle Reduction Metrics")
     plots.MetricsPlotter.save_summary_report(
         to_uint8(noisy_img),
-        results,
-        ["SSI", "SMPI", "DR-IQA"],
-        "Speckle/Consistency Metrics (vs Noisy Input)",
+        denoiser_results,
+        ["SSI", "SMPI", "NSF", "ENL", "CNR"],
+        "Speckle Reduction Metrics",
         "report_speckle",
         save_dir=save_dir,
-        include_original_in_table=True
+        include_original_in_table=False
     )
 
-    # 3. No-Ref Report (Quality)
-    # Pass ref_img=None to remove the "Reference" column!
-    plots.MetricsPlotter.print_summary_text(results, ["PIQE", "BRISQUE", "NIQE"], "No-Reference Quality Metrics")
+    # 3. Structural Similarity Report (EPF wavelet + EPI Sobel)
+    plots.MetricsPlotter.print_summary_text(denoiser_results, ["EPF", "EPI", "OMQDI"], "Structural Similarity Metrics")
     plots.MetricsPlotter.save_summary_report(
-        None,  # <--- KEY CHANGE: No Reference Image
-        results,
-        ["PIQE", "BRISQUE", "NIQE"],
-        "No-Reference Quality Metrics",
-        "report_noref",
+        to_uint8(noisy_img),
+        denoiser_results,
+        ["EPF", "EPI", "OMQDI"],
+        "Structural Similarity Metrics",
+        "report_structural",
         save_dir=save_dir,
-        include_original_in_table=True
+        include_original_in_table=False
     )
+
+    # Note: Naturalness metrics (NIQE) computed but not reported (biased for medical images)
 
     if save:
         print(f"Comparison reports saved to {save_dir}")

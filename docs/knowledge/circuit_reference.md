@@ -54,7 +54,7 @@ Upload image intensities using direct statevector initialization.
 
 ## Denoising
 
-### DENOISER(qc, pos_regs, intensity_reg, bias=None, brightness_shift=10)
+### DENOISER(qc, pos_regs, intensity_reg, bias=None)
 
 Apply parent-child consistency denoising circuit.
 
@@ -64,9 +64,6 @@ Apply parent-child consistency denoising circuit.
 3. Compare pixel MSB to parent average (XNOR logic)
 4. Mark inconsistent pixels in bias qubit
 5. Uncompute all operations except bias
-
-**Parameters:**
-- `brightness_shift`: Offset applied before/after denoising (default: 10)
 
 ---
 

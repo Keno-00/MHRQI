@@ -96,7 +96,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, fast=False, verbos
     # Denoising
     # -------------------------
     if denoise:
-        data_qc = circuit.ACCIDENT_DISCOVERY(data_qc, pos_regs, intensity_reg, bias)
+        data_qc = circuit.DENOISER(data_qc, pos_regs, intensity_reg, bias)
 
     # -------------------------
     # Simulation
@@ -162,15 +162,6 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, fast=False, verbos
         evals_dir = os.path.join(run_dir, "evals")
         print(f"Running benchmarks... saving to {evals_dir}")
 
-        # Prepare Reference (NL-Means) as "Ground Truth" for Full-Ref metrics
-        nlmeans_ref = None
-        print("Generating NL-Means reference...")
-        try:
-            input_float = compare_to.to_float01(myimg)
-            nlmeans_ref = compare_to.denoise_nlmeans(input_float)
-        except Exception as e:
-            print(f"Warning: NL-Means generation failed: {e}")
-
         compare_to.compare_to(
             myimg,
             proposed_img=newimg,
@@ -179,7 +170,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, fast=False, verbos
             save=True,
             save_prefix="comp",
             save_dir=evals_dir,
-            reference_image=nlmeans_ref
+            reference_image=None  # No synthetic reference - only no-ref metrics
         )
 
     return myimg, newimg, run_dir
@@ -225,7 +216,7 @@ if __name__ == "__main__":
             use_shots=use_shots,
             fast=fast,
             verbose_plots=verbose_plots,
-            img_path="resources/dme1.jpeg",
+            img_path="resources/non_medical/plane.png",
             run_comparison=run_comparison
         )
 

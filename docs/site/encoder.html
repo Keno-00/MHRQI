@@ -18,58 +18,565 @@
 <body>
     <header id="mainHeader">
         <div class="container-inner">
-            <div style="border-bottom: 4px solid var(--ink-color); padding-bottom: 20px; margin-bottom: 20px;">
-                <h1 style="border:none; margin:0; padding:0; font-size: 3rem; line-height: 1;">MHRQI</h1>
+            <div style="border-bottom: 1px solid var(--ink-color); padding-bottom: 10px; margin-bottom: 20px;">
+                <h1 style="border:none; margin:0; padding:0; font-size: 2.5rem; line-height: 1;">MHRQI</h1>
                 <div class="subtitle-row"
-                    style="font-family: var(--font-ui); font-size: 1rem; display: flex; justify-content: space-between; align-items: flex-end;">
-                    <span>Magnitude-Hierarchical Representation of Quantum Images</span>
-                    <span style="font-size: 0.7rem; text-align: right;">SYS.VER: 2.0.4</span>
+                    style="font-family: var(--font-ui); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: flex-end;">
+                    <span>A Hierarchical Representation for Quantum Image Processing</span>
+                    <span style="font-size: 0.7rem; text-align: right;">v2.0.4</span>
                 </div>
             </div>
             <nav class="main-nav">
-                <a href="index.html">Home</a>
+                <a href="index.html">Overview</a>
                 <a href="preprocessing.html">Preprocessing</a>
                 <a href="encoder.html">Encoder</a>
-                <a href="denoiser.html">Denoising</a>
+                <a href="denoiser.html">Denoiser</a>
                 <a href="simulation.html">Simulation</a>
+                <a href="retrieval.html">Image Retrieval</a>
                 <a href="benchmark.html">Benchmark</a>
+                <a href="findings.html">Findings</a>
+                <a href="about.html">About</a>
             </nav>
         </div>
     </header>
 
     <div class="container">
-
-        <section id="encoder">
-            <h2 class="ui-text">03 // Encoder System: MHRQI-B</h2>
+        <!-- Overview -->
+        <section id="encoder-overview">
+            <h2 class="ui-text">Encoding Pipeline</h2>
             <div class="wireframe-box">
+                <p>
+                    The MHRQI encoder system is an algorithm that transforms a classical grayscale image into a quantum
+                    state.
+                    This is done programmatically by creating a quantum circuit. This involves 3 stages:
+                    <strong>initialization</strong>, <strong>coordinate superposition</strong>, and <strong>intensity
+                        encoding</strong>.
+                </p>
                 <div class="mermaid">
                     graph LR
-                    HCV["Position (HCV)"] --> Ancilla["Ancilla Target"]
-                    Ancilla -- "Controlled Flip" --> Target["Intensity Bits (0-255)"]
-                    Img["Pixel Intensity"] -- "Binary Map" --> Ancilla
-                    Target --> State["Basis-Encoded State"]
+                    A["Initialization"] --> B["Coordinate Superposition"]
+                    B --> C["Intensity Encoding"]
+                    C --> D(["Quantum Circuit"])
                 </div>
+            </div>
+        </section>
+
+        <!-- Stage 1: Initialization -->
+        <section id="stage1-init">
+            <h2 class="ui-text">Stage 1: Initialization</h2>
+            <div class="wireframe-box">
                 <p>
-                    MHRQI-B uses <strong>Basis Encoding</strong> for pixel intensities. Each pixel's grayscale value
-                    is mapped to a binary integer and encoded across the intensity register using multi-controlled
-                    ancilla-driven bit flips. This ensures a compact, searchable representation of the image structure.
+                    The initialization creates a quantum circuit with structured qubit registers.
                 </p>
 
-                <div class="explorer-grid" style="margin-top: 30px;">
-                    <div style="max-width:300px; margin:0 auto;">
-                        <div class="ui-text" style="font-size:0.7rem; margin-bottom:5px;">INTERACTIVE.PROBE [4 x 4]
+                <h3 style="font-size: 0.95rem; margin-top: 25px;">Qubit Layout</h3>
+                <table style="width:100%; font-size:0.85rem; border-collapse:collapse; margin:15px 0;">
+                    <thead>
+                        <tr style="background:#f5f5f5;">
+                            <th style="padding:10px; border:1px solid #ddd; text-align:left;">Register</th>
+                            <th style="padding:10px; border:1px solid #ddd; text-align:center;">Count</th>
+                            <th style="padding:10px; border:1px solid #ddd; text-align:left;">Purpose</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding:10px; border:1px solid #ddd;"><code>q_y_k, q_x_k</code></td>
+                            <td style="padding:10px; border:1px solid #ddd; text-align:center;">2 × L_max</td>
+                            <td style="padding:10px; border:1px solid #ddd;">Hierarchical position (HCV encoding)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:10px; border:1px solid #ddd;"><code>intensity</code></td>
+                            <td style="padding:10px; border:1px solid #ddd; text-align:center;">8</td>
+                            <td style="padding:10px; border:1px solid #ddd;">Basis-encoded grayscale (0-255)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:10px; border:1px solid #ddd;"><code>outcome</code></td>
+                            <td style="padding:10px; border:1px solid #ddd; text-align:center;">1</td>
+                            <td style="padding:10px; border:1px solid #ddd;">Denoising consistency flag</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:10px; border:1px solid #ddd;"><code>work</code></td>
+                            <td style="padding:10px; border:1px solid #ddd; text-align:center;">2</td>
+                            <td style="padding:10px; border:1px solid #ddd;">Ancilla for multi-controlled gates</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="content-block" style="background:#f9f9f9; padding:15px; margin:15px 0;">
+                    <strong>Example (256×256 image):</strong><br>
+                    L_max = log₂(256) = 8<br>
+                    Total qubits = (2 × 8) + 8 + 1 + 2 = <strong>27 qubits</strong>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stage 2: Coordinate Superposition -->
+        <section id="stage2-superposition">
+            <h2 class="ui-text">Stage 2: Coordinate Superposition</h2>
+            <div class="wireframe-box">
+                <p>
+                    Hadamard gates place each position qubit into an equal superposition of |0⟩ and |1⟩:
+                </p>
+                <div class="content-block" style="text-align: center; margin: 15px 0;">
+                    <p style="font-size: 1rem;">
+                        $$ H|0\rangle = \frac{1}{\sqrt{2}}(|0\rangle + |1\rangle) $$
+                    </p>
+                </div>
+
+                <!-- Animation Viewport -->
+                <h3 style="font-size: 0.95rem; margin-top: 25px;">Classical vs Quantum Addressing</h3>
+                <p style="font-size: 0.85rem; color: #555; margin-bottom: 15px;">
+                    Watch how classical sequential addressing compares to quantum parallel superposition.
+                </p>
+
+                <div id="superpositionViewport" class="animation-viewport">
+                    <!-- Phase Label (top center) -->
+                    <div id="phaseLabel" class="phase-label"></div>
+
+                    <!-- Left Panel: List (classical) or Qubits (quantum) -->
+                    <div id="leftPanel" class="anim-left-panel">
+                        <!-- Coordinate List (Classical) -->
+                        <div id="coordinateList" class="coordinate-list"></div>
+                        <!-- Qubit Panel (Quantum) -->
+                        <div id="qubitPanel" style="display:none; flex-direction:column; padding-top:20px;"></div>
+                        <!-- Pixel Identity Display (Classical) -->
+                        <div id="pixelIdentity"
+                            style="text-align:center; padding:15px; margin-top:auto; border-top:1px solid #eee; opacity:0; transition:opacity 0.3s;">
                         </div>
-                        <div class="grid-wrapper" id="pixelGrid" style="max-width:200px; background-size: 50px 50px;">
-                        </div>
-                        <p style="font-size:0.6rem; color:#888; text-align:center; margin-top:5px;">[CLICK PIXEL TO
-                            GENERATE GATES]</p>
                     </div>
-                    <div id="circuitExplorer" class="wireframe-box"
-                        style="background:#f9f9f9; text-align:left; padding: 20px;">
-                        <p style="font-family:var(--font-ui); font-size:0.8rem; text-align:center;">[SELECT PIXEL TO SEE
-                            GATES]</p>
+
+                    <!-- Right Panel: Grid -->
+                    <div id="rightPanel" class="anim-right-panel">
+                        <div id="animGrid" class="anim-grid"></div>
+                    </div>
+
+                    <!-- Floating elements for animation -->
+                    <div id="floatingElements"></div>
+                </div>
+
+                <div style="text-align: center; margin-top: 15px;">
+                    <button id="animPlayBtn" onclick="toggleSuperposAnimation()"
+                        style="padding: 8px 20px; font-size: 0.75rem;">
+                        ▶ PLAY
+                    </button>
+                    <button onclick="restartSuperposAnimation()"
+                        style="padding: 8px 20px; font-size: 0.75rem; margin-left: 10px;">
+                        ↻ RESTART
+                    </button>
+                </div>
+
+                <style>
+                    .animation-viewport {
+                        position: relative;
+                        width: 100%;
+                        height: 450px;
+                        border: 2px solid #000;
+                        background: #fafafa;
+                        overflow: hidden;
+                        display: flex;
+                    }
+
+                    .phase-label {
+                        position: absolute;
+                        top: 20px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        font-family: var(--font-ui);
+                        font-size: 1.2rem;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 0.1em;
+                        opacity: 0;
+                        transition: opacity 0.5s;
+                        z-index: 10;
+                    }
+
+                    .anim-left-panel {
+                        width: 200px;
+                        height: 100%;
+                        border-right: 1px solid #ccc;
+                        padding: 60px 15px 15px 15px;
+                        overflow-y: auto;
+                        background: #fff;
+                    }
+
+                    .anim-right-panel {
+                        flex: 1;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 20px;
+                    }
+
+                    .anim-grid {
+                        display: grid;
+                        border: 2px solid #000;
+                        background: #000;
+                        gap: 1px;
+                    }
+
+                    .anim-cell {
+                        background: #e0e0e0;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-family: var(--font-ui);
+                        font-size: 0.5rem;
+                        transition: all 0.3s;
+                        position: relative;
+                    }
+
+                    .anim-cell.highlighted {
+                        background: #000;
+                        color: #fff;
+                    }
+
+                    .anim-cell.quantum-cell {
+                        background: #f5f5f5;
+                        border: 1px solid #999;
+                    }
+
+                    .coordinate-list {
+                        font-family: monospace;
+                        font-size: 0.7rem;
+                        line-height: 1.6;
+                    }
+
+                    .coord-item {
+                        padding: 2px 5px;
+                        border-bottom: 1px solid #eee;
+                        opacity: 0;
+                        animation: fadeInItem 0.3s forwards;
+                    }
+
+                    @keyframes fadeInItem {
+                        to {
+                            opacity: 1;
+                        }
+                    }
+
+                    .qubit-panel {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        padding-top: 20px;
+                    }
+
+                    .qubit-row {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        font-family: var(--font-ui);
+                        font-size: 0.75rem;
+                    }
+
+                    .qubit-label-text {
+                        width: 25px;
+                        font-weight: 600;
+                    }
+
+                    .qubit-kets {
+                        display: flex;
+                        gap: 15px;
+                    }
+
+                    .qubit-ket {
+                        padding: 4px 10px;
+                        border: 1px solid #999;
+                        border-radius: 3px;
+                        background: #fff;
+                        font-family: monospace;
+                        transition: all 0.3s;
+                    }
+
+                    .qubit-ket.active-0 {
+                        background: #d0d0d0;
+                        border-color: #666;
+                        font-weight: bold;
+                    }
+
+                    .qubit-ket.active-1 {
+                        background: #a0a0a0;
+                        border-color: #333;
+                        font-weight: bold;
+                    }
+
+                    .qubit-ket.active-both {
+                        background: #c0c0c0;
+                        border-color: #444;
+                        font-weight: bold;
+                    }
+
+                    .floating-label {
+                        position: absolute;
+                        font-family: monospace;
+                        font-size: 0.7rem;
+                        padding: 2px 6px;
+                        border-radius: 3px;
+                        pointer-events: none;
+                        z-index: 20;
+                        transition: all 0.5s ease-out;
+                    }
+                </style>
+            </div>
+        </section>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        <!-- Stage 3: Intensity Encoding -->
+        <section id="stage3-encoding">
+            <h2 class="ui-text">Stage 3: Intensity Encoding</h2>
+            <div class="wireframe-box">
+                <p>
+                    For each pixel position, the intensity value is encoded in the intensity register
+                    using <strong>basis encoding</strong>: the 8-bit binary representation of the grayscale value.
+                </p>
+
+                <h3 style="font-size: 0.95rem; margin-top: 25px;">Basis Encoding Formula</h3>
+                <div class="content-block"
+                    style="text-align: center; margin: 15px 0; padding: 20px; background: #f0f8ff; border: 1px solid #cce;">
+                    <p style="font-size: 1rem;">
+                        $$ I \in [0, 255] \rightarrow |b_7 b_6 b_5 b_4 b_3 b_2 b_1 b_0\rangle $$
+                    </p>
+                </div>
+
+                <h3 style="font-size: 0.95rem; margin-top: 25px;">Example: Encoding Pixel Value 200</h3>
+                <div class="content-block"
+                    style="font-family: monospace; font-size: 0.85rem; background:#f9f9f9; padding:15px; line-height:1.8;">
+                    <strong>Given:</strong> Intensity = 200<br><br>
+                    <strong>Step 1:</strong> Convert to binary<br>
+                    200 = 128 + 64 + 8 = 11001000₂<br><br>
+                    <strong>Step 2:</strong> Identify which qubits to flip<br>
+                    Bits set to 1: positions 7, 6, 3<br><br>
+                    <strong>Step 3:</strong> Apply gates<br>
+                    • MCX(position_controls → work_ancilla)<br>
+                    • CX(work_ancilla → intensity[7])<br>
+                    • CX(work_ancilla → intensity[6])<br>
+                    • CX(work_ancilla → intensity[3])<br>
+                    • MCX(position_controls → work_ancilla) [uncompute]<br><br>
+                    <strong>Result:</strong> |intensity⟩ = |11001000⟩ for this position
+                </div>
+            </div>
+        </section>
+
+        <!-- Create an Encoder -->
+        <section id="create-encoder">
+            <h2 class="ui-text">Create an Encoder</h2>
+            <div class="wireframe-box" style="overflow:hidden;">
+                <p>
+                    Select an OCT image and scale to generate the unique encoder circuit.
+                    Each image produces a different circuit based on its pixel intensities.
+                </p>
+
+                <!-- Image Selection -->
+                <div style="margin: 25px 0;">
+                    <div class="ui-text" style="font-size:0.75rem; margin-bottom:10px;">SELECT IMAGE CATEGORY</div>
+                    <div id="imageButtons" style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button class="img-btn" data-image="cnv" onclick="selectImage('cnv')">
+                            <img src="/resources/cnv1.jpeg" alt="CNV"
+                                style="width:60px; height:60px; object-fit:cover;">
+                            <span>CNV</span>
+                        </button>
+                        <button class="img-btn" data-image="dme" onclick="selectImage('dme')">
+                            <img src="/resources/dme1.jpeg" alt="DME"
+                                style="width:60px; height:60px; object-fit:cover;">
+                            <span>DME</span>
+                        </button>
+                        <button class="img-btn" data-image="drusen" onclick="selectImage('drusen')">
+                            <img src="/resources/drusen1.jpeg" alt="Drusen"
+                                style="width:60px; height:60px; object-fit:cover;">
+                            <span>Drusen</span>
+                        </button>
+                        <button class="img-btn active" data-image="normal" onclick="selectImage('normal')">
+                            <img src="/resources/normal1.jpeg" alt="Normal"
+                                style="width:60px; height:60px; object-fit:cover;">
+                            <span>Normal</span>
+                        </button>
                     </div>
                 </div>
+
+                <!-- Scale Selection -->
+                <div style="margin: 25px 0;">
+                    <div class="ui-text" style="font-size:0.75rem; margin-bottom:10px;">SELECT SCALE</div>
+                    <div style="display:flex; gap:10px;">
+                        <button class="scale-btn active" data-scale="8" onclick="selectScale(8)">8×8</button>
+                        <button class="scale-btn" data-scale="16" onclick="selectScale(16)">16×16</button>
+                    </div>
+                </div>
+
+                <!-- Generate Button -->
+                <div style="margin: 25px 0; text-align:center;">
+                    <button id="generateBtn" onclick="generateCircuit()" style="padding:12px 30px; font-size:0.9rem;">
+                        GENERATE CIRCUIT
+                    </button>
+                </div>
+
+                <!-- Circuit Info -->
+                <div id="circuitInfo"
+                    style="display:none; margin:20px 0; padding:15px; background:#f5f5f5; border:1px solid #ddd;">
+                    <div class="ui-text" style="font-size:0.7rem; margin-bottom:10px;">CIRCUIT INFO</div>
+                    <div id="circuitInfoContent" style="font-size:0.8rem;"></div>
+                </div>
+
+                <!-- Circuit Viewer (scrollable inside fixed container) -->
+                <div id="encoderCircuit" class="circuit-viewer">
+                    <p style="font-family:var(--font-ui); font-size:0.8rem; text-align:center; color:#666;">
+                        Select an image and click "Generate Circuit" to view the encoder circuit.
+                    </p>
+                </div>
+            </div>
+
+            <style>
+                .img-btn {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    padding: 10px;
+                    border: 2px solid #ccc;
+                    background: #fff;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .img-btn:hover {
+                    border-color: #666;
+                }
+
+                .img-btn.active {
+                    border-color: #000;
+                    background: #f0f0f0;
+                }
+
+                .img-btn span {
+                    font-size: 0.7rem;
+                    margin-top: 5px;
+                    font-family: var(--font-ui);
+                }
+
+                .scale-btn {
+                    padding: 10px 25px;
+                    border: 2px solid #ccc;
+                    background: #fff;
+                    cursor: pointer;
+                    font-family: var(--font-ui);
+                    transition: all 0.2s;
+                }
+
+                .scale-btn:hover {
+                    border-color: #666;
+                }
+
+                .scale-btn.active {
+                    border-color: #000;
+                    background: #000;
+                    color: #fff;
+                }
+
+                .circuit-viewer {
+                    background: #f9f9f9;
+                    border: 1px solid #000;
+                    padding: 15px;
+                    min-height: 200px;
+                    /* Fixed width viewport - acts as a window */
+                    width: 100%;
+                    max-width: 800px;
+                    overflow-x: scroll;
+                    overflow-y: hidden;
+                    box-sizing: border-box;
+                    display: block;
+                    position: relative;
+                }
+
+                /* Ensure SVG doesn't push container */
+                .circuit-viewer>div {
+                    display: inline-block;
+                    min-width: max-content;
+                }
+            </style>
+
+            <script>
+                let selectedImage = 'normal';
+                let selectedScale = 8;
+
+                function selectImage(imageId) {
+                    selectedImage = imageId;
+                    document.querySelectorAll('.img-btn').forEach(btn => btn.classList.remove('active'));
+                    document.querySelector(`.img-btn[data-image="${imageId}"]`).classList.add('active');
+                }
+
+                function selectScale(scale) {
+                    selectedScale = scale;
+                    document.querySelectorAll('.scale-btn').forEach(btn => btn.classList.remove('active'));
+                    document.querySelector(`.scale-btn[data-scale="${scale}"]`).classList.add('active');
+                }
+
+                async function generateCircuit() {
+                    const circuitEl = document.getElementById('encoderCircuit');
+                    const infoEl = document.getElementById('circuitInfo');
+                    const infoContent = document.getElementById('circuitInfoContent');
+                    const btn = document.getElementById('generateBtn');
+
+                    btn.disabled = true;
+                    btn.textContent = 'GENERATING...';
+                    circuitEl.innerHTML = '<p style="text-align:center; color:#666;">Generating circuit...</p>';
+
+                    try {
+                        const res = await fetch(`/api/encoder/circuit?image=${selectedImage}&n=${selectedScale}`);
+                        const data = await res.json();
+
+                        if (data.error) {
+                            circuitEl.innerHTML = `<p style="color:red;">${data.error}</p>`;
+                        } else {
+                            if (typeof renderCircuitSVG === 'function') {
+                                circuitEl.innerHTML = renderCircuitSVG(data);
+                            } else {
+                                circuitEl.innerHTML = '<p style="color:#666;">Circuit renderer not loaded</p>';
+                            }
+
+                            // Show info
+                            infoEl.style.display = 'block';
+                            infoContent.innerHTML = `
+                                <strong>Image:</strong> ${data.info.image.toUpperCase()}<br>
+                                <strong>Scale:</strong> ${data.info.scale}×${data.info.scale}<br>
+                                <strong>Total Qubits:</strong> ${data.info.total_qubits}<br>
+                                <strong>Total Gates:</strong> ${data.info.total_gates}
+                            `;
+                        }
+                    } catch (e) {
+                        circuitEl.innerHTML = `<p style="color:red;">Error: ${e.message}</p>`;
+                    } finally {
+                        btn.disabled = false;
+                        btn.textContent = 'GENERATE CIRCUIT';
+                    }
+                }
+            </script>
+        </section>
+
+        <!-- Code Reference -->
+        <section id="code-reference">
+            <h2 class="ui-text">Code Reference</h2>
+            <div class="wireframe-box">
+                <p style="font-size: 0.85rem;">
+                    <strong>Functions:</strong>
+                    <code>MHRQI_init()</code> and <code>MHRQI_upload()</code> in
+                    <a href="https://github.com/Keno-00/MHRQI/blob/main/circuit.py" style="color:#333;">circuit.py</a>
+                </p>
+                <p style="font-size: 0.85rem;">
+                    <strong>Fast variant:</strong>
+                    <code>MHRQI_lazy_upload()</code> bypasses gate synthesis by directly initializing the statevector.
+                    Use this for simulation (much faster).
+                </p>
             </div>
         </section>
     </div>

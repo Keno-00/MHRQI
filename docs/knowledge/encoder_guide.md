@@ -1,12 +1,12 @@
-# Encoder Guide: MHRQI-B
+# Encoder
 
-This guide explains how classical images are encoded in the **Magnitude-Hierarchical Representation of Quantum Images (Basis Encoding)**.
+This guide explains how classical images are encoded in the **Magnitude-Hierarchical Representation of Quantum Images**.
 
 ---
 
-## Core Encoding: MHRQI-B
+## Components of MHRQI
 
-MHRQI-B (Basis-Encoded MHRQI) stores pixel intensities directly as binary integers in a quantum register. This is more robust for near-term hardware than older angle-based (rotation) methods.
+MHRQI stores pixel coordinates and intensities in two quantum registers. 
 
 ### 1. Hierarchical Position
 
@@ -16,6 +16,10 @@ The image is decomposed using a quad-tree structure (for d=2). Each level of the
 - **Level k:** Fine-grained pixel position
 
 The **Hierarchical Coordinate Vector (HCV)** maps (r,c) to a sequence of indices.
+
+The position register is initialized to the state |0⟩ for each qubit. To each qubit, hadamard gates are applied. This creates a superposition of all possible positions.
+
+
 
 ### 2. Basis-Encoded Intensity
 
