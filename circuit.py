@@ -139,7 +139,7 @@ def MHRQI_upload(qc: QuantumCircuit, pos_regs, intensity_reg, d, hierarchy_matri
         r, c = utils.compose_rc(vec, d)
         pixel_value = float(img[r, c])
         intensity_int = int(pixel_value * (2**bit_depth - 1))
-        intensity_bits = format(intensity_int, f'0{bit_depth}b')
+        intensity_bits = format(intensity_int, f'0{bit_depth}b')[::-1]
         _prepare_controls_on_states(qc, controls, ctrl_states)
         if len(controls) > 0:
             qc.mcx(controls, and_ancilla)
