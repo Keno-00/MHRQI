@@ -378,6 +378,16 @@ def compute_mse(img_gt, img_test):
     _check_same_shape(gt, te)
     return mean_squared_error(gt, te)
 
+def compute_psnr(img_gt, img_test, data_range=255.0):
+    """
+    Compute Peak Signal-to-Noise Ratio (PSNR) in dB.
+    Higher is better.
+    """
+    mse_val = compute_mse(img_gt, img_test)
+    if mse_val == 0:
+        return float('inf')
+    return 10.0 * np.log10((data_range ** 2) / mse_val)
+
 def plot_mse_map(img_gt, img_test, title="Per-pixel squared error", run_dir=None):
     """
     Show per-pixel squared error heatmap.
@@ -441,16 +451,17 @@ def compute_ssi(img_noisy, img_filtered, roi):
     m_f = np.mean(reg_f)
     s_f = np.std(reg_f)
 
-    if m_n == 0 or m_f == 0:
+    eps = 1e-10
+    if m_n < eps or m_f < eps:
         return float('inf')
 
     cov_n = s_n / m_n
     cov_f = s_f / m_f
 
-    if cov_n == 0:
+    if cov_n < eps:
         return float('inf')
 
-    return cov_f / cov_n
+    return float(cov_f / cov_n)
 
 def compute_dr_iqa(img_dr, img_fd):
     """
@@ -563,10 +574,12 @@ def compute_enl(img, roi=None):
     mean_val = np.mean(region)
     var_val = np.var(region)
     
-    if var_val == 0:
-        return float('inf')
+    eps = 1e-10
+    if var_val < eps:
+        return 10000.0  # Cap at reasonable max
     
-    return float((mean_val ** 2) / var_val)
+    enl = (mean_val ** 2) / var_val
+    return float(min(enl, 10000.0))
 
 def compute_epi(img_original, img_denoised):
     """
@@ -639,9 +652,21 @@ def auto_detect_rois(img):
     for y in range(0, h - block_size, block_size // 2):
         for x in range(0, w - block_size, block_size // 2):
             block = arr[y:y+block_size, x:x+block_size]
+            mu = np.mean(block)
+            if mu > 0.95: # Skip saturated regions
+                continue
+                
             var = np.var(block)
-            if var < best_var and var > 0:
-                best_var = var
+            
+            # Center bias
+            dist_to_center = np.sqrt((y + block_size/2 - h/2)**2 + (x + block_size/2 - w/2)**2)
+            dist_norm = dist_to_center / np.sqrt((h/2)**2 + (w/2)**2)
+            
+            # Cost = var + penalty for being away from center
+            cost = var + 0.05 * dist_norm
+            
+            if cost < best_var and var > 0:
+                best_var = cost
                 bg_roi = (y, x, block_size, block_size)
     
     return signal_roi, bg_roi
@@ -674,11 +699,12 @@ def compute_cnr(img, signal_roi=None, bg_roi=None):
     mean_bg = np.mean(bg_region)
     std_bg = np.std(bg_region)
     
-    if std_bg == 0:
-        return (float('inf'), signal_roi, bg_roi)
+    eps = 1e-10
+    if std_bg < eps:
+        return (10000.0, signal_roi, bg_roi)  # Cap at reasonable max
     
     cnr = abs(mean_signal - mean_bg) / std_bg
-    return (float(cnr), signal_roi, bg_roi)
+    return (float(min(cnr, 10000.0)), signal_roi, bg_roi)
 
 
 # =============================================================================
@@ -760,7 +786,7 @@ class MetricsPlotter:
         names = [m["name"] for m in table_methods]
 
         # Compute Ranks
-        higher_better = {"OMQDI", "EPF", "ENL", "EPI", "CNR"}  # Higher is better
+        higher_better = {"OMQDI", "EPF", "ENL", "EPI", "CNR", "NSF"}  # Higher is better
         ranks = {k: {} for k in metric_keys}
 
         for k in metric_keys:

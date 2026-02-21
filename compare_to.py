@@ -82,12 +82,21 @@ def auto_homogeneous_roi(img, win=20, stride=10):
         for x in range(0, W - win, stride):
             patch = img[y:y+win, x:x+win]
             mu = patch.mean()
-            if mu < eps:
+            if mu < eps or mu > 0.95:  # Skip dark or saturated regions
                 continue
+            
             sigma = patch.std()
             cov = sigma / mu
-            if cov < best_cov:
-                best_cov = cov
+            
+            # Center-bias: Prefer regions closer to the image center
+            dist_to_center = np.sqrt((y + win/2 - H/2)**2 + (x + win/2 - W/2)**2)
+            dist_norm = dist_to_center / np.sqrt((H/2)**2 + (W/2)**2)
+            
+            # Combine COV and center bias (cost = COV + 0.1 * normalized_distance)
+            cost = cov + 0.1 * dist_norm
+            
+            if cost < best_cov:
+                best_cov = cost
                 best_roi = (y, x, win, win)
 
     if best_roi is None:

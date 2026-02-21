@@ -313,13 +313,11 @@ def DENOISER(qc: QuantumCircuit, pos_regs, intensity_reg, outcome=None):
     denoise_qc.h(qx_fine)
     denoise_qc.h(qy_fine)
 
-    denoise_qc.draw(output='latex',interactive=False,idle_wires=True,justify="left",filename="denoiser.png")
 
     qc.compose(denoise_qc, inplace=True)
 
-    
-
     return qc, denoise_qc
+
 
 
 def ACCIDENT_DISCOVERY(qc: QuantumCircuit, pos_regs, intensity_reg, outcome=None):
