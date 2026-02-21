@@ -37,22 +37,50 @@ import compare_to
 import main
 import plots
 
-# Medical image paths
+# Medical image paths. Only use DR images for this case. Never use Images in Folders
 MEDICAL_IMAGES = [
-    "resources/cnv1.jpeg",
+    "resources/cnv1.jpeg", # 8 CNV
     "resources/cnv2.jpeg",
-    "resources/dme1.jpeg",
+    "resources/cnv3.jpeg",
+    "resources/cnv4.jpeg",
+    "resources/cnv5.jpeg",
+    "resources/cnv6.jpeg",
+    "resources/cnv7.jpeg",
+    "resources/cnv8.jpeg",
+    
+    "resources/dme1.jpeg", # 8 DME
     "resources/dme2.jpeg",
-    "resources/drusen1.jpeg",
+    "resources/dme3.jpeg",
+    "resources/dme4.jpeg",
+    "resources/dme5.jpeg",
+    "resources/dme6.jpeg",
+    "resources/dme7.jpeg",
+    "resources/dme8.jpeg",
+    
+    "resources/drusen1.jpeg", # 8 Drusen
     "resources/drusen2.jpeg",
-    "resources/normal1.jpeg",
+    "resources/drusen3.jpeg",
+    "resources/drusen4.jpeg",
+    "resources/drusen5.jpeg",
+    "resources/drusen6.jpeg",
+    "resources/drusen7.jpeg",
+    "resources/drusen8.jpeg",
+    
+    "resources/normal1.jpeg",   # 8 Normal
     "resources/normal2.jpeg",
     "resources/normal3.jpeg",
+    "resources/normal4.jpeg",
+    "resources/normal5.jpeg",
+    "resources/normal6.jpeg",
+    "resources/normal7.jpeg",
+    "resources/normal8.jpeg",
 ]
 
+#total 32 images
+
 # Metrics for comparison (No synthetic clean reference available)
-SPECKLE_METRICS_LOWER = ["SSI", "SMPI", "NSF"]  # Lower is better
-SPECKLE_METRICS_HIGHER = ["ENL", "CNR"]  # Higher is better
+SPECKLE_METRICS_LOWER = ["SSI", "SMPI"]  # Lower is better
+SPECKLE_METRICS_HIGHER = ["ENL", "CNR", "NSF"]  # Higher is better
 STRUCTURAL_METRICS = ["EPF", "EPI", "OMQDI"]  # Higher is better
 # NIQE computed but not reported (biased for medical images)
 ALL_SPECKLE_METRICS = SPECKLE_METRICS_LOWER + SPECKLE_METRICS_HIGHER
@@ -236,14 +264,14 @@ def create_results_table(all_results, metrics_dir):
         {
             "name": "Speckle Reduction (Lower Better)",
             "metrics": SPECKLE_METRICS_LOWER,
-            "higher_better": False,  # Lower is better for SSI, SMPI, NSF
+            "higher_better": False,  # Lower is better for SSI, SMPI
             "H0": "MHRQI achieves the same speckle reduction as [competitor]",
             "H1": "MHRQI achieves different speckle reduction than [competitor]",
         },
         {
             "name": "Speckle Reduction (Higher Better)",
             "metrics": SPECKLE_METRICS_HIGHER,
-            "higher_better": True,  # Higher is better for ENL
+            "higher_better": True,  # Higher is better for ENL, CNR, NSF
             "H0": "MHRQI achieves the same speckle reduction as [competitor]",
             "H1": "MHRQI achieves different speckle reduction than [competitor]",
         },
@@ -327,6 +355,8 @@ def create_visualization(all_results, metrics_dir):
     Create separate visualizations for each metric category.
     """
     import matplotlib.pyplot as plt
+    import matplotlib.colors as mcolors
+    from matplotlib.patches import Patch
 
     methods = METHODS
 
@@ -350,8 +380,13 @@ def create_visualization(all_results, metrics_dir):
                         if not np.isnan(v):
                             vals.append(v)
                 if vals:
-                    method_means[method].append(np.mean(vals))
-                    method_stds[method].append(np.std(vals))
+                    # Clip to 10000 for visualization if needed
+                    m_val = np.mean(vals)
+                    s_val = np.std(vals)
+                    if m_val > 10000: m_val = 10000
+                    if s_val > 10000: s_val = 10000
+                    method_means[method].append(m_val)
+                    method_stds[method].append(s_val)
                 else:
                     method_means[method].append(0)
                     method_stds[method].append(0)
@@ -360,32 +395,37 @@ def create_visualization(all_results, metrics_dir):
         if all(all(v == 0 for v in method_means[m]) for m in methods):
             continue
 
-        x = np.arange(len(metrics))
-        width = 0.2
+        x = np.arange(len(methods))
+        width = 0.6
 
-        fig, ax = plt.subplots(figsize=(8, 5))
+        fig, axes = plt.subplots(len(metrics), 1, figsize=(8, 4 * len(metrics)), sharex=False)
+        if len(metrics) == 1:
+            axes = [axes]
 
         colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
         labels = ['BM3D', 'NL-Means', 'SRAD', 'MHRQI (Ours)']
 
-        for i, method in enumerate(methods):
-            offset = (i - len(methods)/2 + 0.5) * width
-            ax.bar(x + offset, method_means[method], width, label=labels[i],
-                   color=colors[i], yerr=method_stds[method], capsize=3)
+        for idx, (ax, metric) in enumerate(zip(axes, metrics)):
+            means = [method_means[m][idx] for m in methods]
+            stds = [method_stds[m][idx] for m in methods]
+            
+            # Use bars instead of grouped bars since we have subplots
+            bars = ax.bar(methods, means, width, yerr=stds, capsize=5, color=colors)
+            
+            ax.set_title(f"Metric: {metric}", fontsize=12, fontweight='bold')
+            ax.set_ylabel('Score', fontsize=10)
+            ax.grid(axis='y', alpha=0.3)
+            
+            # Use labels for methods
+            ax.set_xticks(np.arange(len(methods)))
+            ax.set_xticklabels(labels)
 
-        ax.set_xlabel('Metric', fontsize=11)
-        ax.set_ylabel('Score', fontsize=11)
-        ax.set_title(group_name, fontsize=13, fontweight='bold')
-        ax.set_xticks(x)
-        ax.set_xticklabels(metrics)
-        ax.legend(loc='best')
-        ax.grid(axis='y', alpha=0.3)
+            direction_note = '↑ Higher is better' if higher_better else '↓ Lower is better'
+            ax.annotate(direction_note, xy=(0.98, 0.02), xycoords='axes fraction',
+                       ha='right', fontsize=9, style='italic', color='gray')
 
-        direction_note = '↑ Higher is better' if higher_better else '↓ Lower is better'
-        ax.annotate(direction_note, xy=(0.98, 0.02), xycoords='axes fraction',
-                   ha='right', fontsize=9, style='italic', color='gray')
-
-        plt.tight_layout()
+        fig.suptitle(group_name, fontsize=14, fontweight='bold', y=0.98)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         filename = group_name.lower().replace(" ", "_").replace("/", "_").replace("(", "").replace(")", "").replace("=", "") + ".png"
         plt.savefig(os.path.join(metrics_dir, filename), dpi=150)
         plt.close()
@@ -395,6 +435,109 @@ def create_visualization(all_results, metrics_dir):
     print(f"\nVisualizations saved to: {metrics_dir}")
 
 
+def create_summary_heatmap(stat_results, metrics_dir):
+    """
+    Create a WIN/TIE/LOSS heatmap from pre-computed statistical results.
+
+    Args:
+        stat_results: List of dicts from create_results_table() (same structure
+                      as statistical_results.json).
+        metrics_dir:  Directory where the PNG is saved.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.colors as mcolors
+    from matplotlib.patches import Patch
+
+    if not stat_results:
+        print("  No statistical results to plot; skipping heatmap.")
+        return
+
+    competitors = sorted(set(d["competitor"] for d in stat_results))
+    metrics = sorted(set(d["metric"] for d in stat_results))
+
+    # Preserve category grouping
+    categories = {d["metric"]: d["category"] for d in stat_results}
+    metrics.sort(key=lambda x: categories[x])
+
+    # Build matrix: 2 = WIN, 1 = TIE, 0 = LOSS
+    heatmap_data = np.zeros((len(competitors), len(metrics)))
+    for d in stat_results:
+        row = competitors.index(d["competitor"])
+        col = metrics.index(d["metric"])
+        interp = d["interpretation"].lower()
+        if "mhrqi significantly better" in interp:
+            heatmap_data[row, col] = 2
+        elif "comparable" in interp:
+            heatmap_data[row, col] = 1
+        # else 0 (competitor better)
+
+    fig, ax = plt.subplots(figsize=(14, 7))
+
+    cmap = mcolors.ListedColormap(["#FF8A8A", "#FFFBD1", "#A3EBB1"])
+    bounds = [-0.5, 0.5, 1.5, 2.5]
+    norm = mcolors.BoundaryNorm(bounds, cmap.N)
+
+    ax.imshow(heatmap_data, cmap=cmap, norm=norm, aspect="auto")
+
+    # Grid lines
+    ax.set_xticks(np.arange(len(metrics) + 1) - 0.5, minor=True)
+    ax.set_yticks(np.arange(len(competitors) + 1) - 0.5, minor=True)
+    ax.grid(which="minor", color="white", linestyle="-", linewidth=3)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    # Axis labels
+    ax.set_xticks(np.arange(len(metrics)))
+    ax.set_yticks(np.arange(len(competitors)))
+    ax.set_xticklabels(metrics, fontsize=11, fontweight="bold", rotation=0)
+    ax.set_yticklabels([c.upper() for c in competitors], fontsize=11, fontweight="bold")
+
+    # Cell annotations
+    for i in range(len(competitors)):
+        for j in range(len(metrics)):
+            val = heatmap_data[i, j]
+            label = "WIN" if val == 2 else "TIE" if val == 1 else "LOSS"
+            ax.text(j, i, label, ha="center", va="center",
+                    color="#333333", fontsize=11, fontweight="bold")
+
+    # Category span headers
+    unique_cats, cat_starts, current_cat = [], [], None
+    for i, m in enumerate(metrics):
+        if categories[m] != current_cat:
+            unique_cats.append(categories[m])
+            cat_starts.append(i)
+            current_cat = categories[m]
+
+    for i, cat in enumerate(unique_cats):
+        start = cat_starts[i]
+        end = cat_starts[i + 1] if i + 1 < len(cat_starts) else len(metrics)
+        mid = (start + end - 1) / 2
+        ax.annotate("", xy=(start - 0.4, -0.6), xytext=(end - 0.6, -0.6),
+                    xycoords="data", textcoords="data",
+                    arrowprops=dict(arrowstyle="-", color="gray", lw=1.5))
+        ax.text(mid, -0.8, cat, ha="center", va="bottom",
+                fontsize=10, fontweight="bold", style="italic", color="#555555")
+
+    ax.spines[:].set_visible(False)
+    ax.set_title(
+        "MHRQI Performance Benchmark Summary\n(Statistical Significance vs SOTA)",
+        fontsize=15, fontweight="bold", pad=50
+    )
+
+    legend_elements = [
+        Patch(facecolor="#A3EBB1", label="MHRQI Significantly Better (p < 0.05)"),
+        Patch(facecolor="#FFFBD1", label="Competitive / No Significant Difference"),
+        Patch(facecolor="#FF8A8A", label="Competitor Significantly Better (p < 0.05)"),
+    ]
+    ax.legend(handles=legend_elements, loc="upper center",
+              bbox_to_anchor=(0.5, -0.15), ncol=3, frameon=False, fontsize=10)
+
+    plt.tight_layout()
+    output_path = os.path.join(metrics_dir, "benchmark_summary_heatmap.png")
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"  Saved: benchmark_summary_heatmap.png")
+
+
 if __name__ == "__main__":
     print("="*60)
     print("MHRQI Statistical Benchmark")
@@ -402,13 +545,14 @@ if __name__ == "__main__":
     print("="*60)
 
     # Run benchmark
-    all_results, base_dir, metrics_dir = run_benchmark(n=256, strength=1.65)
+    all_results, base_dir, metrics_dir = run_benchmark(n=16, strength=1.65)
 
     # Create results table and statistical tests
     summary, stat_results = create_results_table(all_results, metrics_dir)
 
-    # Create visualization
+    # Create visualizations
     create_visualization(all_results, metrics_dir)
+    create_summary_heatmap(stat_results, metrics_dir)
 
     print(f"\n{'='*60}")
     print(f"All results saved to: {base_dir}")

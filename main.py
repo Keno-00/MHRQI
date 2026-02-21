@@ -96,7 +96,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, fast=False, verbos
     # Denoising
     # -------------------------
     if denoise:
-        data_qc = circuit.DENOISER(data_qc, pos_regs, intensity_reg, bias)
+        data_qc, _ = circuit.DENOISER(data_qc, pos_regs, intensity_reg, bias)
 
     # -------------------------
     # Simulation
@@ -178,7 +178,7 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, fast=False, verbos
 
 if __name__ == "__main__":
     # Configuration
-    n = 256  # Image size
+    n = 4  # Image size
     d = 2   # qudit dimension: 2=qubit
 
     # Single MHRQI backend (no choice needed)
@@ -186,11 +186,11 @@ if __name__ == "__main__":
     # Simulation settings
     use_shots = False       # False = statevector (exact), True = shot-based sampling
     shots_list = [10000000]
-    fast = True             # Use lazy (statevector) upload for speed
+    fast = False             # Use lazy (statevector) upload for speed
     denoise = True           # Apply denoising circuit
 
-    verbose_plots = True
-    run_comparison = True
+    verbose_plots = False
+    run_comparison = False 
 
 
     # Testing mode

@@ -1,0 +1,218 @@
+[
+  {
+    "category": "Speckle Reduction (Lower Better)",
+    "competitor": "bm3d",
+    "metric": "SSI",
+    "p_value": 4.656612873077393e-10,
+    "mean_diff": 0.2238255375996232,
+    "interpretation": "bm3d significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Lower Better)",
+    "competitor": "bm3d",
+    "metric": "SMPI",
+    "p_value": 0.019448095466941595,
+    "mean_diff": -0.00601017102599144,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Lower Better)",
+    "competitor": "nlmeans",
+    "metric": "SSI",
+    "p_value": 4.656612873077393e-10,
+    "mean_diff": 0.33801256492733955,
+    "interpretation": "nlmeans significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Lower Better)",
+    "competitor": "nlmeans",
+    "metric": "SMPI",
+    "p_value": 0.5000474993139505,
+    "mean_diff": -0.003907434642314911,
+    "interpretation": "Comparable (no significant difference)",
+    "significant": 0
+  },
+  {
+    "category": "Speckle Reduction (Lower Better)",
+    "competitor": "srad",
+    "metric": "SSI",
+    "p_value": 4.656612873077393e-10,
+    "mean_diff": 0.22302195616066456,
+    "interpretation": "srad significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Lower Better)",
+    "competitor": "srad",
+    "metric": "SMPI",
+    "p_value": 4.656612873077393e-10,
+    "mean_diff": 0.030575424432754517,
+    "interpretation": "srad significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Higher Better)",
+    "competitor": "bm3d",
+    "metric": "ENL",
+    "p_value": 4.656612873077393e-10,
+    "mean_diff": -80.68123924732208,
+    "interpretation": "bm3d significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Higher Better)",
+    "competitor": "bm3d",
+    "metric": "CNR",
+    "p_value": 0.0029474091716110706,
+    "mean_diff": -16.918793148906843,
+    "interpretation": "bm3d significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Higher Better)",
+    "competitor": "bm3d",
+    "metric": "NSF",
+    "p_value": 0.012499021831899881,
+    "mean_diff": -0.05317606791504659,
+    "interpretation": "bm3d significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Higher Better)",
+    "competitor": "nlmeans",
+    "metric": "ENL",
+    "p_value": 4.656612873077393e-10,
+    "mean_diff": -152.52234721183777,
+    "interpretation": "nlmeans significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Higher Better)",
+    "competitor": "nlmeans",
+    "metric": "CNR",
+    "p_value": 2.312939614057541e-06,
+    "mean_diff": -13.436514404449554,
+    "interpretation": "nlmeans significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Higher Better)",
+    "competitor": "nlmeans",
+    "metric": "NSF",
+    "p_value": 0.4653229475952685,
+    "mean_diff": -0.009329266817076132,
+    "interpretation": "Comparable (no significant difference)",
+    "significant": 0
+  },
+  {
+    "category": "Speckle Reduction (Higher Better)",
+    "competitor": "srad",
+    "metric": "ENL",
+    "p_value": 4.656612873077393e-10,
+    "mean_diff": -70.51029825210571,
+    "interpretation": "srad significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Higher Better)",
+    "competitor": "srad",
+    "metric": "CNR",
+    "p_value": 0.02797716623172164,
+    "mean_diff": -3.9516281433971017,
+    "interpretation": "srad significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Speckle Reduction (Higher Better)",
+    "competitor": "srad",
+    "metric": "NSF",
+    "p_value": 4.656612873077393e-10,
+    "mean_diff": -0.4263970737811178,
+    "interpretation": "srad significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "bm3d",
+    "metric": "EPF",
+    "p_value": 9.902752935886383e-06,
+    "mean_diff": 0.10396631620824337,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "bm3d",
+    "metric": "EPI",
+    "p_value": 0.30378718534484506,
+    "mean_diff": -0.01330536620854176,
+    "interpretation": "Comparable (no significant difference)",
+    "significant": 0
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "bm3d",
+    "metric": "OMQDI",
+    "p_value": 2.8421171009540558e-05,
+    "mean_diff": 0.05079023540019989,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "nlmeans",
+    "metric": "EPF",
+    "p_value": 0.0014367210678756237,
+    "mean_diff": 0.05936875194311142,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "nlmeans",
+    "metric": "EPI",
+    "p_value": 0.018431528005748987,
+    "mean_diff": -0.020306953688466516,
+    "interpretation": "nlmeans significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "nlmeans",
+    "metric": "OMQDI",
+    "p_value": 6.905756890773773e-07,
+    "mean_diff": 0.05003947578370571,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "srad",
+    "metric": "EPF",
+    "p_value": 4.656612873077393e-10,
+    "mean_diff": 0.41185488319024444,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "srad",
+    "metric": "EPI",
+    "p_value": 3.259629011154175e-09,
+    "mean_diff": 0.10116609954984185,
+    "interpretation": "MHRQI significantly better",
+    "significant": 1
+  },
+  {
+    "category": "Structural Similarity",
+    "competitor": "srad",
+    "metric": "OMQDI",
+    "p_value": 0.7468255525454879,
+    "mean_diff": -0.014542201533913612,
+    "interpretation": "Comparable (no significant difference)",
+    "significant": 0
+  }
+]
