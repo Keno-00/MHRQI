@@ -509,7 +509,7 @@ def compute_omqdi(img_noisy, img_denoised):
             - EPF: Edge-Preservation Factor (Q1), ideal value 1, range [0, 1].
             - NSF: Noise-Suppression Factor (Q2), ideal value 1, range [0, 1].
     """
-    from IQA import OMQDI
+    from compare_to import OMQDI
 
     noisy = _to_float_array(img_noisy)
     denoised = _to_float_array(img_denoised)
