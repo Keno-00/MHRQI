@@ -152,7 +152,7 @@ def MHRQI_upload(qc: QuantumCircuit, pos_regs, intensity_reg, d, hierarchy_matri
                 if bit_val == '1':
                     qc.x(intensity_qubits[bit_idx])
         _restore_controls(qc, controls, ctrl_states)
-    #qc.draw(output='latex_source', filename="upload_circuit.tex")
+    qc.draw(output='latex_source', filename="upload_circuit.tex")
     return qc
 
     
@@ -201,13 +201,17 @@ def MHRQI_lazy_upload(qc: QuantumCircuit, pos_regs, intensity_reg, d, hierarchy_
 
 
 def DENOISER(qc: QuantumCircuit, pos_regs, intensity_reg, outcome=None):
+    """
+    Multilevel Denoising Circuit.
+    
+    Checks consistency between a pixel's MSB and its parent's average intensity
+    across multiple hierarchical scales. Edge/structure pixels (inconsistent)
+    are marked with larger rotation angles on the outcome qubit.
+    """
     denoise_qc = QuantumCircuit(*qc.qregs)
     num_levels = len(pos_regs) // 2
 
-    #========================================
     # Ancilla allocation
-    #========================================
-
     work_qubits = []
     for r in denoise_qc.qregs:
         if r.name == 'work':
@@ -224,119 +228,57 @@ def DENOISER(qc: QuantumCircuit, pos_regs, intensity_reg, outcome=None):
     intensity_qubits = list(intensity_reg)
 
     finest_level = num_levels - 1
-
     if finest_level == 0:
         denoise_qc.x(outcome_qubit)
         qc.compose(denoise_qc, inplace=True)
         return qc
 
     # Intensity MSBs for parent average encoding
-    intensity_msb   = intensity_qubits[-1]
-    intensity_msb_1 = intensity_qubits[-2] if len(intensity_qubits) > 1 else intensity_msb
-    intensity_msb_2 = intensity_qubits[-3] if len(intensity_qubits) > 2 else intensity_msb_1
-    intensity_msb_3 = intensity_qubits[-4] if len(intensity_qubits) > 3 else intensity_msb_2
-    msb_list = [intensity_msb, intensity_msb_1, intensity_msb_2, intensity_msb_3]
-    cry_angles = [np.pi / 16, np.pi / 8, np.pi / 4, np.pi / 2]
+    intensity_msb = intensity_qubits[-1]
+    msb_list = intensity_qubits[-4:] if len(intensity_qubits) >= 4 else intensity_qubits
+    # Angles to approximate parent average on ancilla using MSBs
+    cry_angles = [np.pi / (2 ** (4 - i)) for i in range(len(msb_list))]
 
-    # ==========================================
-    # MULTI-SCALE CONSISTENCY CHECKS
-    # ==========================================
-    # Traverse from finest level down to half the hierarchy.
-    # Each level XORs into the outcome qubit, discriminating
-    # noise (inconsistent at fine scales only) from edges
-    # (inconsistent across scales).
-
+    # Multi-scale check: finer levels down to half hierarchy
     stop_level = max(num_levels // 2, 1)
-
-    # ==========================================
-    # LEVEL WEIGHTS
-    # ==========================================
-    # Geometric decay: coarser levels (lower index) get exponentially
-    # more weight than finer levels (higher index) because coarse-scale
-    # inconsistency is stronger evidence of real structure (edges, lesion
-    # boundaries) than fine-scale inconsistency (noise).
-    #
-    # For level l in [stop_level … finest_level]:
-    #   pos  = finest_level - l   (0 = finest, increases toward coarser)
-    #   w(l) = 2^pos
-    # Normalise so ∑ w(l) * π = π  →  total_weight = ∑ 2^pos = 2^n_active - 1
-    #
-    # Result: unanimous inconsistency across all active levels → π rotation;
-    #         fine-scale-only inconsistency → small rotation (≤ π / (2^n−1)).
-
     num_active = finest_level - stop_level + 1
-
-    def level_angle(level):  # noqa: ARG001
-        # Equal vote per level: each contributes π/num_active so that
-        # unanimous inconsistency (all levels) = π rotation (full flip)
-        # and partial inconsistency (noise, typically 1-2 fine levels)
-        # = a small rotation → mild denoising rather than full suppression.
-        return np.pi / num_active
+    outcome_angle = np.pi / num_active
 
     for level in range(finest_level, stop_level - 1, -1):
         qy = pos_regs[2 * level][0]
         qx = pos_regs[2 * level + 1][0]
 
-        outcome_angle = level_angle(level)
-
-        # === Sibling superposition at this scale ===
+        # 1. Compute parent average on ancilla
+        # Traverse siblings at this level
         denoise_qc.h(qy)
         denoise_qc.h(qx)
-
-        # === Parent average encoding (4-bit CRY) ===
-        for q in msb_list:
-            denoise_qc.x(q)
         for angle, q in zip(cry_angles, msb_list):
             denoise_qc.cry(angle, q, parent_avg_ancilla)
-        for q in msb_list:
-            denoise_qc.x(q)
-
-        # === Uncompute sibling superposition ===
         denoise_qc.h(qx)
         denoise_qc.h(qy)
 
-        # === XNOR: MSB vs parent average ===
-        denoise_qc.x(parent_avg_ancilla)
-        denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
-        denoise_qc.x(parent_avg_ancilla)
+        # 2. XNOR between MSB and parent average (result=0 means inconsistent/edge)
+        # We want to detect difference (XOR) to mark structure
+        # XOR(msb, avg) = 1 if different
+        denoise_qc.cx(intensity_msb, consistency_ancilla)
+        denoise_qc.cx(parent_avg_ancilla, consistency_ancilla)
 
-        denoise_qc.x(intensity_msb)
-        denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
-        denoise_qc.x(parent_avg_ancilla)
-        denoise_qc.x(intensity_msb)
-
-        # === Weighted outcome vote (CRY instead of CX) ===
-        # Coarser levels contribute larger angles; finer levels contribute
-        # smaller angles. This prevents noise (fine-scale only) from
-        # dominating the outcome qubit and over-smoothing real features.
-        denoise_qc.x(consistency_ancilla)
+        # 3. Mark outcome if inconsistent (consistency_ancilla = 1)
         denoise_qc.cry(outcome_angle, consistency_ancilla, outcome_qubit)
 
-        # === Uncompute consistency ===
-        denoise_qc.x(intensity_msb)
-        denoise_qc.x(parent_avg_ancilla)
-        denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
-        denoise_qc.x(parent_avg_ancilla)
-        denoise_qc.x(intensity_msb)
+        # 4. Uncompute XOR
+        denoise_qc.cx(parent_avg_ancilla, consistency_ancilla)
+        denoise_qc.cx(intensity_msb, consistency_ancilla)
 
-        denoise_qc.ccx(intensity_msb, parent_avg_ancilla, consistency_ancilla)
-
-        # === Uncompute parent average ===
+        # 5. Uncompute parent average
         denoise_qc.h(qy)
         denoise_qc.h(qx)
-
-        for q in msb_list:
-            denoise_qc.x(q)
         for angle, q in zip(cry_angles, msb_list):
             denoise_qc.cry(-angle, q, parent_avg_ancilla)
-        for q in msb_list:
-            denoise_qc.x(q)
-
         denoise_qc.h(qx)
         denoise_qc.h(qy)
 
     qc.compose(denoise_qc, inplace=True)
-
     return qc, denoise_qc
 
 
