@@ -101,11 +101,7 @@ def main(
     if denoise:
         model.apply_denoising()
 
-    data_qc = model.circuit
-
-    # -------------------------
-    # Simulation
-    # -------------------------
+    # Simulate
     start_time = time.perf_counter()
     result = model.simulate(shots=shots if use_shots else None, use_gpu=True)
     end_time = time.perf_counter()
@@ -115,7 +111,7 @@ def main(
     # -------------------------
     newimg = result.reconstruct(use_denoising_bias=denoise)
     newimg = (np.clip(newimg, 0.0, 1.0) * 255).astype(np.uint8)
-    
+
     # Save bias_stats for plotting if needed
     bias_stats = result.bias_stats
     # -------------------------

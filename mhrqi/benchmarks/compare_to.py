@@ -133,10 +133,10 @@ class BenchmarkSuite:
         self.reference_image = to_float01(reference_image) if reference_image is not None else None
         self.save_dir = save_dir
         self.results = []
-        
+
         if self.save_dir:
             os.makedirs(self.save_dir, exist_ok=True)
-            
+
         try:
             self.roi = auto_homogeneous_roi(self.noisy_image)
         except RuntimeError:
@@ -147,7 +147,7 @@ class BenchmarkSuite:
         Run benchmarks and return results.
         """
         denoisers = {"bm3d": denoise_bm3d, "nlmeans": denoise_nlmeans, "srad": denoise_srad}
-        
+
         if methods == "all":
             methods_list = list(denoisers.keys())
         elif isinstance(methods, str):
@@ -160,7 +160,7 @@ class BenchmarkSuite:
         for name in methods_list:
             if name in denoisers:
                 to_run.append((name, denoisers[name]))
-        
+
         if proposed_image is not None:
             to_run.append(("Proposed", None))
             proposed_float = to_float01(proposed_image)
@@ -175,13 +175,9 @@ class BenchmarkSuite:
                 res_img = proposed_float
             else:
                 res_img = func(self.noisy_image)
-            
+
             metrics = self._compute_metrics(res_img)
-            self.results.append({
-                "name": name,
-                "metrics": metrics,
-                "image": to_uint8(res_img)
-            })
+            self.results.append({"name": name, "metrics": metrics, "image": to_uint8(res_img)})
         return self.results
 
     def _compute_metrics(self, res_img):
@@ -210,49 +206,50 @@ class BenchmarkSuite:
         """Save comparison reports and images."""
         if not self.save_dir:
             raise ValueError("save_dir must be set to save reports")
-            
+
         for res in self.results:
             cv2.imwrite(os.path.join(self.save_dir, f"{prefix}_{res['name']}.png"), res["image"])
-        
+
         # Split results for report generation
         display_results = [r for r in self.results if r["name"] != "Original"]
-        
+
         if self.reference_image is not None:
-             plots.MetricsPlotter.save_summary_report(
-                 to_uint8(self.reference_image),
-                 display_results,
-                 ["FSIM", "SSIM"],
-                 "Full Reference Metrics",
-                 f"{prefix}_full_ref",
-                 self.save_dir
-             )
-        
+            plots.MetricsPlotter.save_summary_report(
+                to_uint8(self.reference_image),
+                display_results,
+                ["FSIM", "SSIM"],
+                "Full Reference Metrics",
+                f"{prefix}_full_ref",
+                self.save_dir,
+            )
+
         plots.MetricsPlotter.save_summary_report(
             to_uint8(self.noisy_image),
             display_results,
             ["SSI", "SMPI", "NSF", "ENL", "CNR"],
             "Speckle Reduction Metrics",
             f"{prefix}_speckle",
-            self.save_dir
+            self.save_dir,
         )
-        
+
         plots.MetricsPlotter.save_summary_report(
             to_uint8(self.noisy_image),
             display_results,
             ["EPF", "EPI", "OMQDI"],
             "Structural Similarity Metrics",
             f"{prefix}_structural",
-            self.save_dir
+            self.save_dir,
         )
 
 
 def compare_to(image_input, **kwargs):
     """Legacy wrapper for BenchmarkSuite."""
-    suite = BenchmarkSuite(image_input, 
-                            reference_image=kwargs.get("reference_image"),
-                            save_dir=kwargs.get("save_dir"))
-    results = suite.run(methods=kwargs.get("methods", "all"), 
-                         proposed_image=kwargs.get("proposed_img"))
+    suite = BenchmarkSuite(
+        image_input, reference_image=kwargs.get("reference_image"), save_dir=kwargs.get("save_dir")
+    )
+    results = suite.run(
+        methods=kwargs.get("methods", "all"), proposed_image=kwargs.get("proposed_img")
+    )
     if kwargs.get("save", True):
         suite.save_reports(prefix=kwargs.get("save_prefix", "denoised"))
     return results
@@ -353,8 +350,8 @@ def sbEn(coeffs: np.array) -> float:
     Returns:
         Sub-band energy as a scalar.
     """
-    I, J = coeffs.shape
-    return np.log(1 + np.sum(np.square(coeffs)) / (I * J))
+    rows, cols = coeffs.shape
+    return np.log(1 + np.sum(np.square(coeffs)) / (rows * cols))
 
 
 def En(lvlCoeffs: tuple, alpha=0.8) -> float:

@@ -1,6 +1,9 @@
 from collections import defaultdict
+
 import numpy as np
+
 from mhrqi.utils import general as utils
+
 
 class MHRQIResult:
     """
@@ -31,10 +34,14 @@ class MHRQIResult:
         """Lazy-loaded decoded bins and bias stats."""
         if self._bins is None:
             if isinstance(self.raw_results, dict):
-                decoded = _make_bins_counts(self.raw_results, self.hierarchical_coord_matrix, self.bit_depth, self.denoise)
+                decoded = _make_bins_counts(
+                    self.raw_results, self.hierarchical_coord_matrix, self.bit_depth, self.denoise
+                )
             else:
-                decoded = _make_bins_sv(self.raw_results, self.hierarchical_coord_matrix, self.bit_depth, self.denoise)
-            
+                decoded = _make_bins_sv(
+                    self.raw_results, self.hierarchical_coord_matrix, self.bit_depth, self.denoise
+                )
+
             if self.denoise:
                 self._bins, self._bias_stats = decoded
             else:
@@ -54,25 +61,25 @@ class MHRQIResult:
 
         Args:
             use_denoising_bias (bool): If True and denoising was on, apply sibling smoothing.
-        
+
         Returns:
             np.ndarray: Reconstructed image.
         """
         if self._image is not None:
             return self._image
-        
+
         # Infer image size from hierarchy matrix
         pos_len = len(self.hierarchical_coord_matrix[0])
         # N = 2^(pos_len/2) assuming d=2
-        image_side = int(2**(pos_len // 2))
+        image_side = int(2 ** (pos_len // 2))
         shape = (image_side, image_side)
-        
+
         self._image = utils.mhrqi_bins_to_image(
-            self.bins, 
-            self.hierarchical_coord_matrix, 
-            d=2, 
-            image_shape=shape, 
-            bias_stats=self.bias_stats if use_denoising_bias else None
+            self.bins,
+            self.hierarchical_coord_matrix,
+            d=2,
+            image_shape=shape,
+            bias_stats=self.bias_stats if use_denoising_bias else None,
         )
         return self._image
 
@@ -87,22 +94,21 @@ class MHRQIResult:
             dict: Dictionary of metrics.
         """
         from mhrqi.utils import visualization as plots
+
         recon = self.reconstruct()
-        # Scale back to 0-255 for standard metrics if needed, 
+        # Scale back to 0-255 for standard metrics if needed,
         # but our compute functions handle float 0-1 too.
-        metrics = {
-             "NIQE": plots.compute_niqe(recon),
-             "ENL": plots.compute_enl(recon)
-        }
+        metrics = {"NIQE": plots.compute_niqe(recon), "ENL": plots.compute_enl(recon)}
         if reference_image is not None:
-             metrics["MSE"] = plots.compute_mse(reference_image, recon)
-             metrics["SSIM"] = plots.compute_ssim(reference_image, recon)
-        
+            metrics["MSE"] = plots.compute_mse(reference_image, recon)
+            metrics["SSIM"] = plots.compute_ssim(reference_image, recon)
+
         return metrics
 
     def plot(self, title="MHRQI Reconstruction", cmap="gray"):
         """Show the reconstructed image in a plot."""
         import matplotlib.pyplot as plt
+
         recon = self.reconstruct()
         plt.figure(figsize=(6, 6))
         plt.imshow(recon, cmap=cmap)

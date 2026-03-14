@@ -17,9 +17,9 @@ from qiskit.circuit.library import MCXGate
 from qiskit_aer import Aer, AerSimulator
 from qiskit_aer.library import SetStatevector
 
-from mhrqi.utils import general as utils
 from mhrqi.core.denoising import apply_denoising
 from mhrqi.core.results import MHRQIResult
+from mhrqi.utils import general as utils
 
 
 # -------------------------
@@ -38,9 +38,7 @@ def _restore_controls(qc: QuantumCircuit, controls, ctrl_states):
             qc.x(q)
 
 
-def apply_multi_controlled_ry(
-    qc, controls, ctrl_states, target, ancilla_for_and, work_ancillas, angle
-):
+def apply_multi_controlled_ry(qc, controls, ctrl_states, target, ancilla_for_and, angle):
     _prepare_controls_on_states(qc, controls, ctrl_states)
 
     try:
@@ -134,7 +132,7 @@ class MHRQI:
             ctrl_states = list(vec)
             r, c = utils.compose_rc(vec, 2)  # d=2 for images
             pixel_value = float(img[r, c])
-            intensity_int = int(pixel_value * (2 ** self.bit_depth - 1))
+            intensity_int = int(pixel_value * (2**self.bit_depth - 1))
             intensity_bits = format(intensity_int, f"0{self.bit_depth}b")[::-1]
 
             _prepare_controls_on_states(self.circuit, controls, ctrl_states)
@@ -170,7 +168,7 @@ class MHRQI:
         intensity_indices = [qubit_to_idx[q] for q in self.intensity_reg]
 
         num_qubits = self.circuit.num_qubits
-        dim = 2 ** num_qubits
+        dim = 2**num_qubits
         state = np.zeros(dim, dtype=complex)
 
         all_indices = pos_indices + intensity_indices
@@ -185,7 +183,7 @@ class MHRQI:
 
                 r, c = utils.compose_rc(hierarchical_coord_vector, 2)
                 pixel_value = float(image[r, c])
-                intensity_int = int(pixel_value * (2 ** self.bit_depth - 1))
+                intensity_int = int(pixel_value * (2**self.bit_depth - 1))
 
                 base_idx = p
                 intensity_offset = 0
@@ -216,9 +214,7 @@ class MHRQI:
             MHRQIResult: Simulation results object.
         """
         if shots is None:
-            backend = Aer.get_backend(
-                "statevector_simulator", device="GPU" if use_gpu else "CPU"
-            )
+            backend = Aer.get_backend("statevector_simulator", device="GPU" if use_gpu else "CPU")
             transpiled = transpile(self.circuit, backend)
             raw = backend.run(transpiled).result().get_statevector()
         else:
@@ -239,8 +235,10 @@ class MHRQI:
 
             transpiled = transpile(qc_measure, backend)
             raw = backend.run(transpiled, shots=shots).result().get_counts()
-        
-        return MHRQIResult(raw, self.hierarchical_coord_matrix, self.bit_depth, self.denoise_enabled)
+
+        return MHRQIResult(
+            raw, self.hierarchical_coord_matrix, self.bit_depth, self.denoise_enabled
+        )
 
     def apply_denoising(self):
         """
@@ -265,7 +263,9 @@ class MHRQI:
         # The actual decoding logic is now handled within MHRQIResult
         # This method might be removed or refactored depending on usage
         # For now, it can serve as a placeholder or direct call to MHRQIResult's decode
-        mhrqi_result = MHRQIResult(results, self.hierarchical_coord_matrix, self.bit_depth, self.denoise_enabled)
+        mhrqi_result = MHRQIResult(
+            results, self.hierarchical_coord_matrix, self.bit_depth, self.denoise_enabled
+        )
         return mhrqi_result.decode()
 
 

@@ -178,7 +178,6 @@ def mhrqi_bins_to_image(
                 if 0 <= nr < N and 0 <= nc < N and confidence_map[nr, nc] <= CONFIDENCE_THRESHOLD:
                     trusted_neighbor_vals.append(source_img[nr, nc])
 
-
         if len(trusted_neighbor_vals) == 0:
             for dr in [-1, 0, 1]:
                 for dc in [-1, 0, 1]:

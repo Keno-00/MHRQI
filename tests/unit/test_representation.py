@@ -49,24 +49,20 @@ def test_prepare_controls():
 
 def test_lazy_upload():
     """Test the fast statevector-based upload."""
-    depth = 2 # 4x4 image
+    depth = 2  # 4x4 image
     bit_depth = 1
     model = circuit.MHRQI(depth, bit_depth)
-    
+
     # 4x4 coordinate matrix (d=2)
     from mhrqi.utils import general as utils
+
     coords = utils.generate_hierarchical_coord_matrix(4, 2)
-    
+
     # Simple checkerboard
-    img = np.array([
-        [0, 1, 0, 1],
-        [1, 0, 1, 0],
-        [0, 1, 0, 1],
-        [1, 0, 1, 0]
-    ])
-    
+    img = np.array([[0, 1, 0, 1], [1, 0, 1, 0], [0, 1, 0, 1], [1, 0, 1, 0]])
+
     model.lazy_upload(coords, img)
-    
+
     # Verify the circuit has a SetStatevector instruction
     found_sv = False
     for instr in model.circuit.data:

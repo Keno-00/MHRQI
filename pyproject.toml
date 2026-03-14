@@ -24,7 +24,7 @@ dependencies = [
     "opencv-python",
     "mqt.qudits",
     "qiskit",
-    "qiskit-aer-gpu",
+    "qiskit-aer",
     "pyyaml",
     "bm3d",
     "brisque",

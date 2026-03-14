@@ -86,7 +86,7 @@ ALL_SPECKLE_METRICS = SPECKLE_METRICS_LOWER + SPECKLE_METRICS_HIGHER
 METHODS = ["bm3d", "nlmeans", "srad", "proposed"]
 
 
-def run_benchmark(n=64, strength=1.65):
+def run_benchmark(n=64, _strength=None):
     """
     Run benchmark on all medical images and collect metrics.
 
@@ -178,7 +178,7 @@ def wilcoxon_test(all_results, method1, method2, metric):
     Perform Wilcoxon signed-rank test between two methods on a specific metric.
     """
     diffs = []
-    for img_name, methods in all_results.items():
+    for _img_name, methods in all_results.items():
         if method1 in methods and method2 in methods:
             v1 = methods[method1].get(metric, float("nan"))
             v2 = methods[method2].get(metric, float("nan"))
@@ -204,7 +204,7 @@ def create_results_table(all_results, metrics_dir):
     all_metrics_list = ALL_SPECKLE_METRICS + STRUCTURAL_METRICS
     method_metrics = {m: {k: [] for k in all_metrics_list} for m in METHODS}
 
-    for img_name, methods in all_results.items():
+    for _img_name, methods in all_results.items():
         for method in METHODS:
             if method in methods:
                 for metric in all_metrics_list:
@@ -415,7 +415,6 @@ def create_visualization(all_results, metrics_dir):
         if all(all(v == 0 for v in method_means[m]) for m in methods):
             continue
 
-        x = np.arange(len(methods))
         width = 0.6
 
         fig, axes = plt.subplots(len(metrics), 1, figsize=(8, 4 * len(metrics)), sharex=False)
@@ -430,7 +429,7 @@ def create_visualization(all_results, metrics_dir):
             stds = [method_stds[m][idx] for m in methods]
 
             # Use bars instead of grouped bars since we have subplots
-            bars = ax.bar(methods, means, width, yerr=stds, capsize=5, color=colors)
+            ax.bar(methods, means, width, yerr=stds, capsize=5, color=colors)
 
             ax.set_title(f"Metric: {metric}", fontsize=12, fontweight="bold")
             ax.set_ylabel("Score", fontsize=10)
@@ -487,8 +486,8 @@ def create_summary_heatmap(stat_results, metrics_dir):
         print("  No statistical results to plot; skipping heatmap.")
         return
 
-    competitors = sorted(set(d["competitor"] for d in stat_results))
-    metrics = sorted(set(d["metric"] for d in stat_results))
+    competitors = sorted({d["competitor"] for d in stat_results})
+    metrics = sorted({d["metric"] for d in stat_results})
 
     # Preserve category grouping
     categories = {d["metric"]: d["category"] for d in stat_results}
@@ -560,7 +559,7 @@ def create_summary_heatmap(stat_results, metrics_dir):
             xytext=(end - 0.6, -0.6),
             xycoords="data",
             textcoords="data",
-            arrowprops=dict(arrowstyle="-", color="gray", lw=1.5),
+            arrowprops={"arrowstyle": "-", "color": "gray", "lw": 1.5},
         )
         ax.text(
             mid,
