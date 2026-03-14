@@ -8,6 +8,8 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
+import logging
+
 import numpy as np
 from qiskit import QuantumCircuit
 
@@ -39,7 +41,7 @@ def apply_denoising(qc: QuantumCircuit, pos_regs, intensity_reg, outcome=None):
             break
 
     if len(work_qubits) < 2 or outcome is None:
-        print("WARNING: Insufficient ancillas")
+        logging.warning("Insufficient ancillas for denoising")
         return qc, denoise_qc
 
     parent_avg_ancilla = work_qubits[0]

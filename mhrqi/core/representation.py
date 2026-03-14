@@ -9,6 +9,7 @@
 """
 
 import itertools
+import warnings
 from collections import defaultdict
 
 import numpy as np
@@ -192,7 +193,7 @@ class MHRQI:
                         intensity_offset |= 1 << (len(pos_indices) + bit_idx)
                 state[base_idx + intensity_offset] = 1.0
         else:
-            print("Warn: Qubits not sequential, falling back to gate-based upload.")
+            warnings.warn("Qubits not sequential, falling back to gate-based upload.", stacklevel=2)
             return self.upload(hierarchical_coord_matrix, image)
 
         state_norm = np.linalg.norm(state)

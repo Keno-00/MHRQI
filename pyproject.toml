@@ -96,6 +96,7 @@ select = [
     "UP",     # pyupgrade
     "ARG",    # flake8-unused-arguments
     "SIM",    # flake8-simplify
+    "T20",    # flake8-print
 ]
 
 # Ignore specific rules
@@ -115,8 +116,12 @@ unfixable = []
 # Allow unused imports in __init__ files
 "__init__.py" = ["F401"]
 # Allow print statements in benchmark scripts
-"statistical_benchmark.py" = ["T201"]
-"compare_to.py" = ["T201"]
+# Allow prints in benchmark, visualization, and example scripts
+"mhrqi/benchmarks/*.py" = ["T201"]
+"mhrqi/utils/visualization.py" = ["T201"]
+"mhrqi/cli/main.py" = ["T201"]
+"examples/*.ipynb" = ["T201"]
+"examples/*.py" = ["T201"]
 
 [tool.ruff.format]
 # Use double quotes for strings
