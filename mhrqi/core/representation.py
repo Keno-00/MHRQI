@@ -20,6 +20,7 @@ from qiskit_aer.library import SetStatevector
 
 from mhrqi.core.denoising import apply_denoising
 from mhrqi.core.results import MHRQIResult
+from mhrqi.core.simulation import MonteCarloSimulator, HierarchicalMeasurementAggregator
 from mhrqi.utils import general as utils
 
 
@@ -203,27 +204,32 @@ class MHRQI:
         self.circuit.append(SetStatevector(state), self.circuit.qubits)
         return self.circuit
 
-    def simulate(self, shots=None, use_gpu=True):
+    def simulate(self, shots=None, use_gpu=True, monte_carlo_seed=None):
         """
-        Simulate the MHRQI circuit.
+        Simulate the MHRQI circuit with optional Monte Carlo backend.
 
         Args:
             shots (int, optional): Number of shots. Returns statevector if None.
+                If provided, uses Monte Carlo shot-based sampling.
             use_gpu (bool): Whether to use GPU acceleration (if available).
+            monte_carlo_seed (int, optional): Seed for reproducible Monte Carlo sampling.
 
         Returns:
             MHRQIResult: Simulation results object.
         """
         if shots is None:
+            # Statevector simulation (exact)
             backend = Aer.get_backend("statevector_simulator", device="GPU" if use_gpu else "CPU")
             transpiled = transpile(self.circuit, backend)
             raw = backend.run(transpiled).result().get_statevector()
         else:
+            # Monte Carlo shot-based simulation
             qc_measure = self.circuit.copy()
             creg = ClassicalRegister(len(self.qubits_to_measure), "c")
             qc_measure.add_register(creg)
             qc_measure.measure(self.qubits_to_measure, creg)
 
+            # Try GPU-accelerated backends first
             if use_gpu:
                 try:
                     backend = AerSimulator(
@@ -235,7 +241,20 @@ class MHRQI:
                 backend = Aer.get_backend("qasm_simulator")
 
             transpiled = transpile(qc_measure, backend)
-            raw = backend.run(transpiled, shots=shots).result().get_counts()
+            
+            # Option 1: Use Qiskit's native sampling (traditional approach)
+            try:
+                raw = backend.run(transpiled, shots=shots).result().get_counts()
+            except Exception as e:
+                # Fallback to statevector + Monte Carlo if Qiskit sampling fails
+                warnings.warn(f"Qiskit sampling failed ({e}); falling back to Monte Carlo backend.", stacklevel=2)
+                statevector_backend = Aer.get_backend("statevector_simulator")
+                sv_circuit = self.circuit.copy()
+                sv_transpiled = transpile(sv_circuit, statevector_backend)
+                statevector = statevector_backend.run(sv_transpiled).result().get_statevector()
+                
+                mc_simulator = MonteCarloSimulator(seed=monte_carlo_seed, use_gpu=use_gpu)
+                raw = mc_simulator.sample_statevector(statevector, shots, self.qubits_to_measure)
 
         return MHRQIResult(
             raw, self.hierarchical_coord_matrix, self.bit_depth, self.denoise_enabled

@@ -1,0 +1,14 @@
+#!/bin/bash
+# Post-installation setup for Binder environment
+
+# Install MHRQI in development mode
+cd /home/jovyan
+pip install -e .
+
+# Pre-download any large resources if needed
+# (None currently needed for demo)
+
+# Enable Jupyter extensions
+jupyter nbextension enable --py widgetsnbextension
+
+echo "✓ Binder environment setup complete"

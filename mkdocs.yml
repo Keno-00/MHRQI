@@ -40,11 +40,23 @@ plugins:
 
 nav:
   - Home: index.md
-  - Guide: guide.md
+  - Getting Started:
+      - User Guide: guide.md
+      - Installation: guide.md#installation
+      - Quick Start: guide.md#quick-start
+  - Examples & Interactive:
+      - Interactive Notebooks: examples.md
+      - Monte Carlo Simulations: examples.md#monte-carlo-simulations
+      - Medical Image Denoising: examples.md#medical-image-denoising-pipeline
+      - Run on MyBinder: https://mybinder.org/v2/gh/Keno-00/MHRQI/main?urlpath=lab
   - API Reference:
-      - Representation: api/core.md
+      - Core (Representation): api/core.md
       - Denoising: api/denoising.md
+      - Simulation & Monte Carlo: api/simulation.md
       - Utils: api/utils.md
       - Benchmarks: api/benchmarks.md
-
+  - Performance:
+      - Benchmark Results: benchmarks.md
+      - Convergence Analysis: benchmarks.md#monte-carlo-convergence
+      - Medical Metrics: benchmarks.md#medical-imaging-evaluation
   - Contributing: contributing.md
