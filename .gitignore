@@ -37,4 +37,7 @@ benchmark/
 PLAN.md
 test_circuit_qiskit.py
 .venv_wsl/
-cuda-keyring_1.1-1_all.debplanning/
+cuda-keyring_1.1-1_all.deb
+
+# Local planning/temporary files
+planning/
