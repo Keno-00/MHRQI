@@ -1,5 +1,6 @@
 # MHRQI: Multi-scale Hierarchical Representation of Quantum Images
 
+[![PyPI](https://img.shields.io/pypi/v/mhrqi.svg)](https://pypi.org/project/mhrqi/)
 [![CI](https://github.com/Keno-00/MHRQI/actions/workflows/ci.yml/badge.svg)](https://github.com/Keno-00/MHRQI/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 

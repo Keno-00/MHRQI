@@ -1,6 +1,6 @@
 [project]
 name = "mhrqi"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Multi-scale Hierarchical Representation of Quantum Images"
 authors = [{name = "Keno S. Jose"}]
 license = {text = "Apache-2.0"}
@@ -55,7 +55,7 @@ dev = [
 ]
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project.scripts]
@@ -137,3 +137,9 @@ docstring-code-format = true
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "--cov=mhrqi"
+
+[tool.setuptools_scm]
+write_to = "mhrqi/_version.py"
+write_to_template = '__version__ = "{version}"\n'
+version_scheme = "post-release"
+tag_regex = "^v?(?P<version>[vV]?\\d+(?:\\.\\d+)*(?:[._-]?(?:alpha|a|beta|b|rc)[._-]?\\d*)?(?:\\+.*)?)"

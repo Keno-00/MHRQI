@@ -4,6 +4,8 @@ authors:
   - family-names: "Jose"
     given-names: "Keno S."
 title: "MHRQI: Multi-scale Hierarchical Representation of Quantum Images"
-version: 0.1.0
+version: "0.1.0"
 date-released: 2026-03-13
 url: "https://github.com/Keno-00/MHRQI"
+repository-code: "https://github.com/Keno-00/MHRQI"
+license: "Apache-2.0"
