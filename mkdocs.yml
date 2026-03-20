@@ -2,6 +2,7 @@ site_name: MHRQI
 site_description: Multi-scale Hierarchical Representation of Quantum Images
 site_author: Keno S. Jose
 repo_url: https://github.com/Keno-00/MHRQI
+site_url: https://keno-00.github.io/MHRQI/
 
 theme:
   name: material
