@@ -117,7 +117,15 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for set
 
 If you use this work in your research, please cite:
 
-TODO: add here preprint or citation when paper has been published
+```bitex
+@software{MHRQI_2026,
+  author = {Keno S. Jose},
+  title = {Multi-scale Hierarchical Representation of Quantum Images (MHRQI)},
+  url = {https://github.com/Keno-00/MHRQI},
+  version = {0.1.0},
+  year = {2026}
+}
+```
 
 ## 📄 License
 
