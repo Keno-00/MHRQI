@@ -5,7 +5,23 @@ description = "Magnitude Hierarchical Representation of Quantum Images"
 authors = [{name = "Keno-00"}]
 license = "Apache-2.0"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "bm3d==4.0.3",
+    "brisque==0.2.0",
+    "matplotlib==3.11.1",
+    "numpy==1.26.4",
+    "opencv-python==4.10.0.84",
+    "pillow==12.3.0",
+    "pypiqe==1.2",
+    "pywavelets==1.9.0",
+    "qiskit==2.2.3",
+    "qiskit-aer==0.17.2",
+    "scikit-image==0.26.0",
+    "scikit-video==1.1.11",
+    "scipy==1.13.1",
+    "srad==0.1.1",
+]
 
 [tool.ruff]
 # Exclude common directories

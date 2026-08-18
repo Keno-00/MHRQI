@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "experiment_name": "ecti_revision_reference",
+  "image_size": 256,
+  "resize_interpolation": "opencv_INTER_AREA",
+  "subdivision_factor": 2,
+  "bit_depth": 8,
+  "benchmark_mode": "statevector",
+  "shots": null,
+  "seeds": {
+    "python": 20260818,
+    "numpy": 20260818,
+    "transpiler": 20260818,
+    "simulator": 20260818,
+    "bootstrap": 20260818
+  },
+  "simulator": {
+    "backend": "AerSimulator",
+    "method": "statevector",
+    "device": "CPU",
+    "allow_device_fallback": false
+  },
+  "baselines": {
+    "bm3d": {"sigma": 0.05, "stage": "ALL_STAGES"},
+    "nlmeans": {"h": 10, "template_window": 7, "search_window": 21},
+    "srad": {"iterations": 400, "dt": 0.65, "decay": 0.8}
+  },
+  "statistics": {
+    "alpha": 0.05,
+    "wilcoxon_alternative": "two-sided",
+    "wilcoxon_zero_method": "wilcox",
+    "wilcoxon_method": "exact",
+    "bootstrap_method": "BCa",
+    "bootstrap_resamples": 10000,
+    "multiple_testing": "Holm"
+  }
+}
+

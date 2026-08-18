@@ -1,13 +1,6 @@
-test_circuit_qiskit.py
-.venv_wsl/
-__pycache__/
-mqt-qudits-sparse/
-sparse_improvements_plan.md
-test_statevector_consistency_backup.py
-runs/
 .venv/
-cuda-keyring_1.1-1_all.deb
-cuda-keyring_1.1-1_all.deb
-venv/
-evals/
+__pycache__/
+*.pyc
 benchmark/
+runs/
+revision_outputs/
