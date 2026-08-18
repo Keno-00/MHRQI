@@ -39,20 +39,36 @@ def save_rows_to_csv(rows, csv_path=CSV_PATH):
             w.writeheader()
         w.writerows(rows)
 
-def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, fast=False, verbose_plots=False, img_path=None, run_comparison=True):
+def main(
+    shots=1000,
+    n=4,
+    d=2,
+    denoise=False,
+    use_shots=True,
+    fast=False,
+    verbose_plots=False,
+    img_path=None,
+    run_comparison=True,
+    simulation_device="CPU",
+    seed_simulator=20260818,
+    seed_transpiler=20260818,
+):
     """
     Main MHRQI simulation pipeline.
     
     Args:
         shots: number of measurement shots (if use_shots=True)
         n: image dimension (will be resized to n x n)
-        d: qudit dimension (2=qubit)
+        d: binary spatial subdivision factor (the implementation uses qubits)
         denoise: whether to apply denoising circuit
         use_shots: if True, use shot-based simulation; if False, use statevector
         fast: if True, use lazy (statevector-based) upload for speed
         verbose_plots: if True, show additional debug plots
         img_path: path to input image (defaults to resources/drusen1.jpeg)
         run_comparison: if True, run comparison benchmarks against BM3D/NL-Means/SRAD
+        simulation_device: Qiskit Aer device, normally "CPU" or "GPU"
+        seed_simulator: random seed used by the simulator
+        seed_transpiler: random seed used by the transpiler
     
     Returns:
         tuple: (original_image, reconstructed_image, run_directory_path)
@@ -104,14 +120,25 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, fast=False, verbos
     start_time = time.perf_counter()
 
     if use_shots:
-        counts = circuit.simulate_counts(data_qc, shots, use_gpu=True)
+        counts = circuit.simulate_counts(
+            data_qc,
+            shots,
+            device=simulation_device,
+            seed_simulator=seed_simulator,
+            seed_transpiler=seed_transpiler,
+        )
         if denoise:
             bins, bias_stats = circuit.make_bins_counts(counts, hierarchy_matrix, denoise=True)
         else:
             bins = circuit.make_bins_counts(counts, hierarchy_matrix, denoise=False)
             bias_stats = None
     else:
-        state_vector = circuit.simulate_statevector(data_qc)
+        state_vector = circuit.simulate_statevector(
+            data_qc,
+            device=simulation_device,
+            seed_simulator=seed_simulator,
+            seed_transpiler=seed_transpiler,
+        )
         if denoise:
             bins, bias_stats = circuit.make_bins_sv(state_vector, hierarchy_matrix, denoise=True)
         else:
@@ -146,7 +173,10 @@ def main(shots=1000, n=4, d=2, denoise=False, use_shots=True, fast=False, verbos
         'Denoise': denoise,
         'Use Shots': use_shots,
         'Shots': shots if use_shots else 'N/A (statevector)',
-        'd (qudit dim)': d,
+        'Spatial subdivision factor d': d,
+        'Simulation device': simulation_device,
+        'Simulator seed': seed_simulator,
+        'Transpiler seed': seed_transpiler,
         'Simulation Time': f'{end_time - start_time:.2f}s'
     }
     plots.save_settings_plot(settings, run_dir)

@@ -14,7 +14,7 @@ from collections import defaultdict
 import numpy as np
 from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister, transpile
 from qiskit.circuit.library import MCXGate
-from qiskit_aer import Aer, AerSimulator
+from qiskit_aer import AerSimulator
 from qiskit_aer.library import SetStatevector
 
 import utils
@@ -325,15 +325,33 @@ def DENOISER(qc: QuantumCircuit, pos_regs, intensity_reg, outcome=None):
 # Simulation helpers
 # -------------------------
 
-def simulate_statevector(qc: QuantumCircuit, use_gpu=True):
-    backend = Aer.get_backend('statevector_simulator',device='GPU' if use_gpu else 'CPU')
-    transpiled = transpile(qc, backend)
-    job = backend.run(transpiled)
+def simulate_statevector(
+    qc: QuantumCircuit,
+    device="CPU",
+    seed_simulator=20260818,
+    seed_transpiler=20260818,
+):
+    """Simulate an exact statevector on an explicit, recorded device."""
+    backend = AerSimulator(method="statevector", device=device)
+    qc_statevector = qc.copy()
+    qc_statevector.save_statevector()
+    transpiled = transpile(
+        qc_statevector,
+        backend,
+        seed_transpiler=seed_transpiler,
+    )
+    job = backend.run(transpiled, seed_simulator=seed_simulator)
     result = job.result()
     return result.get_statevector()
 
 
-def simulate_counts(qc: QuantumCircuit, shots=1024, use_gpu=True):
+def simulate_counts(
+    qc: QuantumCircuit,
+    shots=1024,
+    device="CPU",
+    seed_simulator=20260818,
+    seed_transpiler=20260818,
+):
     pos_qubits = []
     for reg in qc.qregs:
         if reg.name.startswith('q_y_') or reg.name.startswith('q_x_'):
@@ -358,16 +376,13 @@ def simulate_counts(qc: QuantumCircuit, shots=1024, use_gpu=True):
     qc_measure = qc.copy()
     qc_measure.add_register(creg)
     qc_measure.measure(qubits_to_measure, creg)
-    if use_gpu:
-        try:
-            backend = AerSimulator(method='statevector', device='GPU', cuStateVec_enable=True)
-        except Exception as e:
-            print(f"GPU backend error: {e}. Falling back to CPU.")
-            backend = Aer.get_backend('qasm_simulator')
-    else:
-        backend = Aer.get_backend('qasm_simulator')
-    transpiled = transpile(qc_measure, backend)
-    result = backend.run(transpiled, shots=shots).result()
+    backend = AerSimulator(method="statevector", device=device)
+    transpiled = transpile(qc_measure, backend, seed_transpiler=seed_transpiler)
+    result = backend.run(
+        transpiled,
+        shots=shots,
+        seed_simulator=seed_simulator,
+    ).result()
     return result.get_counts()
 
 
