@@ -121,7 +121,7 @@ def auto_homogeneous_roi(img, win=20, stride=10):
 
 def compare_to(image_input, proposed_img=None, methods="all",
                plot=True, save=True, save_prefix="denoised", save_dir=None,
-               reference_image=None):
+               reference_image=None, baseline_config=None):
     """
     Run all classical denoisers and the proposed method on an input image,
     compute image quality metrics, and save comparison reports.
@@ -135,6 +135,7 @@ def compare_to(image_input, proposed_img=None, methods="all",
         save_prefix: Filename prefix for saved images.
         save_dir: Directory to save outputs. Auto-generated if None.
         reference_image: Optional clean reference image for full-reference metrics.
+        baseline_config: Optional dict with hyperparameters for bm3d, nlmeans, and srad.
 
     Returns:
         List of dicts with keys: 'name', 'metrics', 'image'.
@@ -160,10 +161,29 @@ def compare_to(image_input, proposed_img=None, methods="all",
     else:
         proposed = None
 
+    cfg = baseline_config or {}
+    bm3d_cfg = cfg.get("bm3d", {})
+    nlmeans_cfg = cfg.get("nlmeans", {})
+    srad_cfg = cfg.get("srad", {})
+
+    bm3d_stage = bm3d_cfg.get("stage", BM3DStages.ALL_STAGES)
+    if isinstance(bm3d_stage, str) and hasattr(BM3DStages, bm3d_stage):
+        bm3d_stage = getattr(BM3DStages, bm3d_stage)
+
     denoisers = {
-        "bm3d": denoise_bm3d,
-        "nlmeans": denoise_nlmeans,
-        "srad": denoise_srad
+        "bm3d": lambda image: denoise_bm3d(image, sigma=bm3d_cfg.get("sigma", 0.05), stage=bm3d_stage),
+        "nlmeans": lambda image: denoise_nlmeans(
+            image,
+            h=nlmeans_cfg.get("h", 10),
+            template=nlmeans_cfg.get("template_window", 7),
+            search=nlmeans_cfg.get("search_window", 21)
+        ),
+        "srad": lambda image: denoise_srad(
+            image,
+            iters=srad_cfg.get("iterations", 400),
+            dt=srad_cfg.get("dt", 0.65),
+            decay=srad_cfg.get("decay", 0.8)
+        )
     }
 
     if methods == "all":

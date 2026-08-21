@@ -7,6 +7,10 @@
   "bit_depth": 8,
   "benchmark_mode": "statevector",
   "shots": null,
+  "denoise": true,
+  "fast": false,
+  "verbose_plots": false,
+  "run_comparison": false,
   "seeds": {
     "python": 20260818,
     "numpy": 20260818,

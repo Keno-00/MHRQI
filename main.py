@@ -9,8 +9,10 @@
 """
 
 import csv
+import json
 import math
 import os
+import random
 import time
 from datetime import datetime
 from pathlib import Path
@@ -52,6 +54,11 @@ def main(
     simulation_device="CPU",
     seed_simulator=20260818,
     seed_transpiler=20260818,
+    bit_depth=8,
+    resize_interpolation="opencv_INTER_AREA",
+    seed_python=20260818,
+    seed_numpy=20260818,
+    baseline_config=None,
 ):
     """
     Main MHRQI simulation pipeline.
@@ -69,23 +76,42 @@ def main(
         simulation_device: Qiskit Aer device, normally "CPU" or "GPU"
         seed_simulator: random seed used by the simulator
         seed_transpiler: random seed used by the transpiler
+        bit_depth: bits used for intensity encoding
+        resize_interpolation: OpenCV interpolation mode name or constant
+        seed_python: seed for Python random module
+        seed_numpy: seed for NumPy random module
+        baseline_config: dict containing parameters for baseline algorithms
     
     Returns:
         tuple: (original_image, reconstructed_image, run_directory_path)
     """
 
+    # Seed random generators
+    if seed_python is not None:
+        random.seed(seed_python)
+    if seed_numpy is not None:
+        np.random.seed(seed_numpy)
+
     # Use default image if not specified
     if img_path is None:
         img_path = os.path.join(os.path.dirname(__file__), "resources", "drusen1.jpeg")
 
+    # Map interpolation method
+    if isinstance(resize_interpolation, str):
+        interp_name = resize_interpolation.replace("opencv_", "")
+        interp_flag = getattr(cv2, interp_name, cv2.INTER_AREA)
+    else:
+        interp_flag = resize_interpolation
+
     myimg = cv2.imread(img_path)
-    myimg = cv2.resize(myimg, (n, n))
+    myimg = cv2.resize(myimg, (n, n), interpolation=interp_flag)
 
 
     myimg = cv2.cvtColor(myimg, cv2.COLOR_RGB2GRAY)
     N = myimg.shape[1]
     angle_norm = utils.angle_map(myimg)
-    normalized_img = np.clip(myimg.astype(np.float64) / 255.0, 0.0, 1.0)
+    max_intensity = float((2 ** bit_depth) - 1)
+    normalized_img = np.clip(myimg.astype(np.float64) / max_intensity, 0.0, 1.0)
 
 
     H, W = angle_norm.shape
@@ -104,7 +130,7 @@ def main(
     # -------------------------
     # Circuit Construction
     # -------------------------
-    qc, pos_regs, intensity_reg, bias = circuit.MHRQI_init(d, L_max)
+    qc, pos_regs, intensity_reg, bias = circuit.MHRQI_init(d, L_max, bit_depth=bit_depth)
     upload_fn = circuit.MHRQI_lazy_upload if fast else circuit.MHRQI_upload
     data_qc = upload_fn(qc, pos_regs, intensity_reg, d, hierarchy_matrix, normalized_img)
 
@@ -152,7 +178,7 @@ def main(
     # -------------------------
     newimg = utils.mhrqi_bins_to_image(bins, hierarchy_matrix, d, (N, N),
                                         bias_stats=bias_stats, original_img=None)
-    newimg = (np.clip(newimg, 0.0, 1.0) * 255).astype(np.uint8)
+    newimg = (np.clip(newimg, 0.0, 1.0) * max_intensity).astype(np.uint8)
     # -------------------------
     # Verbose Plots (Bias Map)
     # -------------------------
@@ -174,6 +200,10 @@ def main(
         'Use Shots': use_shots,
         'Shots': shots if use_shots else 'N/A (statevector)',
         'Spatial subdivision factor d': d,
+        'Bit Depth': bit_depth,
+        'Resize Interpolation': str(resize_interpolation),
+        'Python Seed': seed_python,
+        'NumPy Seed': seed_numpy,
         'Simulation device': simulation_device,
         'Simulator seed': seed_simulator,
         'Transpiler seed': seed_transpiler,
@@ -200,28 +230,46 @@ def main(
             save=True,
             save_prefix="comp",
             save_dir=evals_dir,
-            reference_image=None  # No synthetic reference - only no-ref metrics
+            reference_image=None,  # No synthetic reference - only no-ref metrics
+            baseline_config=baseline_config,
         )
 
     return myimg, newimg, run_dir
 
 
 if __name__ == "__main__":
-    # Configuration
-    n = 4  # Image size
-    d = 2   # qudit dimension: 2=qubit
+    # Load configuration
+    config_path = os.path.join(os.path.dirname(__file__), "configs", "paper.json")
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = json.load(f)
 
-    # Single MHRQI backend (no choice needed)
+    # Configuration extracted from config file
+    n = config.get("image_size", 256)
+    d = config.get("subdivision_factor", 2)
+    bit_depth = config.get("bit_depth", 8)
+    resize_interpolation = config.get("resize_interpolation", "opencv_INTER_AREA")
 
     # Simulation settings
-    use_shots = False       # False = statevector (exact), True = shot-based sampling
-    shots_list = [10000000]
-    fast = False             # Use lazy (statevector) upload for speed
-    denoise = True           # Apply denoising circuit
+    benchmark_mode = config.get("benchmark_mode", "statevector")
+    use_shots = (benchmark_mode != "statevector")
+    shots_val = config.get("shots")
+    shots_list = [shots_val] if shots_val is not None else [10000000]
 
-    verbose_plots = False
-    run_comparison = False 
+    denoise = config.get("denoise", True)
+    fast = config.get("fast", False)
+    verbose_plots = config.get("verbose_plots", False)
+    run_comparison = config.get("run_comparison", False)
 
+    seeds = config.get("seeds", {})
+    seed_python = seeds.get("python", 20260818)
+    seed_numpy = seeds.get("numpy", 20260818)
+    seed_simulator = seeds.get("simulator", 20260818)
+    seed_transpiler = seeds.get("transpiler", 20260818)
+
+    simulator_cfg = config.get("simulator", {})
+    simulation_device = simulator_cfg.get("device", "CPU")
+
+    baselines_cfg = config.get("baselines", {})
 
     # Testing mode
     do_tests = False
@@ -247,7 +295,15 @@ if __name__ == "__main__":
             fast=fast,
             verbose_plots=verbose_plots,
             img_path="resources/non_medical/plane.png",
-            run_comparison=run_comparison
+            run_comparison=run_comparison,
+            simulation_device=simulation_device,
+            seed_simulator=seed_simulator,
+            seed_transpiler=seed_transpiler,
+            bit_depth=bit_depth,
+            resize_interpolation=resize_interpolation,
+            seed_python=seed_python,
+            seed_numpy=seed_numpy,
+            baseline_config=baselines_cfg,
         )
 
         # These are already saved in the run directory
