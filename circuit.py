@@ -87,19 +87,18 @@ def MHRQI_init(d, L_max, bit_depth=8):
     """
     pos_qubits = []
 
-    # Position qubits (2 per level: y and x)
+    # Position qubits
     for k in range(L_max):
-        pos_qubits.append(QuantumRegister(1, f"q_y_{k}"))
         pos_qubits.append(QuantumRegister(1, f"q_x_{k}"))
+        pos_qubits.append(QuantumRegister(1, f"q_y_{k}"))
 
-    # Intensity qubits (basis-encoded grayscale)
+    # Intensity qubits
     intensity = QuantumRegister(bit_depth, 'intensity')
 
-    # outcome qubit for denoising (hit/miss weighting)
+    # outcome qubit
     outcome = QuantumRegister(1, 'outcome')
 
-    # Work qubits for gradient computation and multi-controlled operations
-    # work[0] is used as and_ancilla during upload
+    # Work qubits
     work = QuantumRegister(2, 'work')
 
     qc = QuantumCircuit(*pos_qubits, intensity, outcome, work)

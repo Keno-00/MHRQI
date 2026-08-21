@@ -61,7 +61,7 @@ def get_subdiv_size(k, N, d):
 
 def compute_register(r, c, d, sk_prev):
     """
-    Compute the qudit register values (qy, qx) for pixel (r, c) at a given scale.
+    Compute the qudit register values (qx, qy) for pixel (r, c) at a given scale.
 
     Args:
         r: Row index.
@@ -70,18 +70,18 @@ def compute_register(r, c, d, sk_prev):
         sk_prev: Subdivision size at the previous level.
 
     Returns:
-        Tuple (qy, qx).
+        Tuple (qx, qy), matching the manuscript's x-then-y convention.
     """
     qx = min(math.floor((c % sk_prev) * (d / sk_prev)), d - 1)
     qy = min(math.floor((r % sk_prev) * (d / sk_prev)), d - 1)
-    return qy, qx
+    return qx, qy
 
 def compose_rc(hcv, d=2):
     """
     Convert a hierarchical coordinate vector to (row, col) pixel coordinates.
 
     Args:
-        hcv: Sequence of qudit values (qy0, qx0, qy1, qx1, ...). Length must be even.
+        hcv: Sequence of qudit values (qx0, qy0, qx1, qy1, ...). Length must be even.
         d: Qudit dimension.
 
     Returns:
@@ -91,22 +91,22 @@ def compose_rc(hcv, d=2):
         ValueError: If hcv length is odd or any digit is out of range.
     """
     if len(hcv) % 2 != 0:
-        raise ValueError("hcv length must be even (pairs of qy,qx).")
+        raise ValueError("hcv length must be even (pairs of qx,qy).")
 
-    qy_digits = hcv[0::2]
-    qx_digits = hcv[1::2]
+    qx_digits = hcv[0::2]
+    qy_digits = hcv[1::2]
 
     r = 0
     c = 0
-    for digit in qy_digits:
-        if not (0 <= digit < d):
-            raise ValueError("qy digit out of range for given d.")
-        r = r * d + int(digit)
-
     for digit in qx_digits:
         if not (0 <= digit < d):
             raise ValueError("qx digit out of range for given d.")
         c = c * d + int(digit)
+
+    for digit in qy_digits:
+        if not (0 <= digit < d):
+            raise ValueError("qy digit out of range for given d.")
+        r = r * d + int(digit)
 
     return r, c
 
