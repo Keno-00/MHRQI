@@ -9,6 +9,7 @@
 """
 
 import datetime
+import math
 import os
 
 import cv2
@@ -923,3 +924,183 @@ def plot_bias_map(bias_stats, original_img, N, d, run_dir=None):
     plt.close()
 
     return bias_map
+
+
+# ===============================================================================
+# Benchmark Distribution & Error Bar Plots
+# ===============================================================================
+
+def plot_metric_boxplots(all_results, metrics=None, methods=None, run_dir=None, filename="metrics_boxplots.png"):
+    """
+    Generate box plots illustrating the distribution of benchmark metrics across methods.
+
+    Args:
+        all_results: Dict mapping img_name -> method_name -> metric_name -> value
+        metrics: List of metric keys to plot
+        methods: List of method names
+        run_dir: Output directory
+        filename: Output image filename
+    """
+    if methods is None:
+        methods = ['bm3d', 'nlmeans', 'srad', 'proposed']
+    
+    if metrics is None:
+        metrics = ['SSI', 'SMPI', 'ENL', 'CNR', 'NSF', 'EPF', 'EPI', 'OMQDI']
+
+    available_metrics = []
+    for m in metrics:
+        for img_res in all_results.values():
+            for meth in methods:
+                if meth in img_res and m in img_res[meth]:
+                    if m not in available_metrics:
+                        available_metrics.append(m)
+
+    if not available_metrics:
+        print("No valid metric data found for boxplots.")
+        return None
+
+    num_metrics = len(available_metrics)
+    cols = min(4, num_metrics)
+    rows = math.ceil(num_metrics / cols)
+
+    fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 3.5 * rows))
+    if num_metrics == 1:
+        axes = np.array([axes])
+    axes = axes.flatten()
+
+    method_labels = [m.upper() if m != 'proposed' else 'MHRQI (Ours)' for m in methods]
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+
+    for i, metric in enumerate(available_metrics):
+        ax = axes[i]
+        data = []
+        for meth in methods:
+            vals = []
+            for img_res in all_results.values():
+                if meth in img_res and metric in img_res[meth]:
+                    v = img_res[meth][metric]
+                    if not np.isnan(v):
+                        vals.append(v)
+            data.append(vals)
+
+        bp = ax.boxplot(data, tick_labels=method_labels, patch_artist=True,
+                        boxprops=dict(alpha=0.7),
+                        medianprops=dict(color='black', linewidth=1.5),
+                        flierprops=dict(marker='o', markersize=4, alpha=0.5))
+
+        for patch, color in zip(bp['boxes'], colors):
+            patch.set_facecolor(color)
+
+        ax.set_title(f"Metric: {metric}", fontsize=11, fontweight='bold')
+        ax.grid(axis='y', linestyle='--', alpha=0.5)
+        ax.tick_params(axis='x', rotation=15)
+
+    for j in range(i + 1, len(axes)):
+        axes[j].axis('off')
+
+    plt.tight_layout()
+    dir_path = get_run_dir(run_dir)
+    out_path = os.path.join(dir_path, filename)
+    plt.savefig(out_path, dpi=150, bbox_inches='tight')
+
+    if not HEADLESS:
+        plt.show()
+    plt.close()
+
+    print(f"  Saved: {filename}")
+    return out_path
+
+
+def plot_metric_errorbars(all_results, metrics=None, methods=None, run_dir=None, filename="metrics_errorbars.png"):
+    """
+    Generate point estimate error bar plots (mean ± std) across methods.
+
+    Args:
+        all_results: Dict mapping img_name -> method_name -> metric_name -> value
+        metrics: List of metric keys to plot
+        methods: List of method names
+        run_dir: Output directory
+        filename: Output image filename
+    """
+    if methods is None:
+        methods = ['bm3d', 'nlmeans', 'srad', 'proposed']
+    
+    if metrics is None:
+        metrics = ['SSI', 'SMPI', 'ENL', 'CNR', 'NSF', 'EPF', 'EPI', 'OMQDI']
+
+    available_metrics = []
+    for m in metrics:
+        for img_res in all_results.values():
+            for meth in methods:
+                if meth in img_res and m in img_res[meth]:
+                    if m not in available_metrics:
+                        available_metrics.append(m)
+
+    if not available_metrics:
+        print("No valid metric data found for errorbar plots.")
+        return None
+
+    num_metrics = len(available_metrics)
+    cols = min(4, num_metrics)
+    rows = math.ceil(num_metrics / cols)
+
+    fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 3.5 * rows))
+    if num_metrics == 1:
+        axes = np.array([axes])
+    axes = axes.flatten()
+
+    method_labels = [m.upper() if m != 'proposed' else 'MHRQI (Ours)' for m in methods]
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+
+    for i, metric in enumerate(available_metrics):
+        ax = axes[i]
+        means = []
+        stds = []
+        for meth in methods:
+            vals = []
+            for img_res in all_results.values():
+                if meth in img_res and metric in img_res[meth]:
+                    v = img_res[meth][metric]
+                    if not np.isnan(v):
+                        vals.append(v)
+            if vals:
+                means.append(np.mean(vals))
+                stds.append(np.std(vals, ddof=1) if len(vals) > 1 else 0.0)
+            else:
+                means.append(0.0)
+                stds.append(0.0)
+
+        x_pos = np.arange(len(methods))
+        ax.errorbar(x_pos, means, yerr=stds, fmt='o', capsize=6, capthick=1.5,
+                    elinewidth=1.5, markersize=8, color='#333333')
+
+        for idx, (x, m_val, col) in enumerate(zip(x_pos, means, colors)):
+            ax.plot(x, m_val, 'o', color=col, markersize=9, zorder=3)
+
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(method_labels, rotation=15)
+        ax.set_title(f"Metric: {metric} (Mean ± SD)", fontsize=11, fontweight='bold')
+        ax.grid(axis='y', linestyle='--', alpha=0.5)
+
+    for j in range(i + 1, len(axes)):
+        axes[j].axis('off')
+
+    plt.tight_layout()
+    dir_path = get_run_dir(run_dir)
+    out_path = os.path.join(dir_path, filename)
+    plt.savefig(out_path, dpi=150, bbox_inches='tight')
+
+    if not HEADLESS:
+        plt.show()
+    plt.close()
+
+    print(f"  Saved: {filename}")
+    return out_path
+
+
+class BenchmarkPlotter:
+    """Utilities for benchmark distribution and error bar plots."""
+
+    plot_metric_boxplots = staticmethod(plot_metric_boxplots)
+    plot_metric_errorbars = staticmethod(plot_metric_errorbars)
+

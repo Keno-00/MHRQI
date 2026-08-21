@@ -432,6 +432,10 @@ def create_visualization(all_results, metrics_dir):
 
         print(f"  Saved: {filename}")
 
+    # Generate metric boxplots and error bar plots across all benchmarks
+    plots.plot_metric_boxplots(all_results, run_dir=metrics_dir)
+    plots.plot_metric_errorbars(all_results, run_dir=metrics_dir)
+
     print(f"\nVisualizations saved to: {metrics_dir}")
 
 
