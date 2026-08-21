@@ -198,14 +198,112 @@ def wilcoxon_test(all_results, method1, method2, metric):
         return None, None, diffs
 
 
+def compute_bootstrap_ci(values, confidence_level=0.95, n_resamples=10000, seed=20260818):
+    """Compute 95% BCa bootstrap confidence interval for the mean."""
+    data = np.asarray(values, dtype=float)
+    data = data[np.isfinite(data)]
+    if len(data) < 2 or np.all(data == data[0]):
+        m = float(np.mean(data)) if len(data) > 0 else 0.0
+        return [m, m]
+    try:
+        res = stats.bootstrap(
+            (data,),
+            np.mean,
+            confidence_level=confidence_level,
+            n_resamples=n_resamples,
+            method="BCa",
+            random_state=np.random.default_rng(seed)
+        )
+        return [float(res.confidence_interval.low), float(res.confidence_interval.high)]
+    except Exception:
+        try:
+            res = stats.bootstrap(
+                (data,),
+                np.mean,
+                confidence_level=confidence_level,
+                n_resamples=n_resamples,
+                method="percentile",
+                random_state=np.random.default_rng(seed)
+            )
+            return [float(res.confidence_interval.low), float(res.confidence_interval.high)]
+        except Exception:
+            m = float(np.mean(data))
+            s = float(np.std(data, ddof=1))
+            se = s / np.sqrt(len(data))
+            return [m - 1.96 * se, m + 1.96 * se]
+
+
+def paired_signed_rank_details(proposed_vals, baseline_vals):
+    """Compute exact paired Wilcoxon signed-rank test and rank-biserial effect size."""
+    proposed = np.asarray(proposed_vals, dtype=float)
+    baseline = np.asarray(baseline_vals, dtype=float)
+    mask = np.isfinite(proposed) & np.isfinite(baseline)
+    p_sub = proposed[mask]
+    b_sub = baseline[mask]
+
+    diffs = p_sub - b_sub
+    nonzero = diffs[diffs != 0]
+
+    if len(nonzero) == 0:
+        return {
+            "n_pairs": int(len(diffs)),
+            "n_nonzero": 0,
+            "w_plus": 0.0,
+            "w_minus": 0.0,
+            "W_stat": 0.0,
+            "p_unadjusted": 1.0,
+            "rank_biserial": 0.0,
+            "mean_diff": 0.0,
+            "median_diff": 0.0,
+        }
+
+    ranks = stats.rankdata(np.abs(nonzero), method="average")
+    w_plus = float(np.sum(ranks[nonzero > 0]))
+    w_minus = float(np.sum(ranks[nonzero < 0]))
+    denom = w_plus + w_minus
+    rank_biserial = (w_plus - w_minus) / denom if denom else 0.0
+
+    try:
+        res = stats.wilcoxon(nonzero, alternative="two-sided", zero_method="wilcox")
+        w_stat = float(res.statistic)
+        p_unadj = float(res.pvalue)
+    except Exception:
+        w_stat = float(min(w_plus, w_minus))
+        p_unadj = 1.0
+
+    return {
+        "n_pairs": int(len(diffs)),
+        "n_nonzero": int(len(nonzero)),
+        "w_plus": w_plus,
+        "w_minus": w_minus,
+        "W_stat": w_stat,
+        "p_unadjusted": p_unadj,
+        "rank_biserial": float(rank_biserial),
+        "mean_diff": float(np.mean(diffs)),
+        "median_diff": float(np.median(diffs)),
+    }
+
+
+def apply_holm_adjustment(records):
+    """Apply Holm-Bonferroni multiple testing adjustment across comparisons."""
+    order = sorted(range(len(records)), key=lambda i: records[i]["p_unadjusted"])
+    running = 0.0
+    count = len(records)
+    for rank, index in enumerate(order):
+        adjusted = min(1.0, (count - rank) * records[index]["p_unadjusted"])
+        running = max(running, adjusted)
+        records[index]["p_holm"] = running
+        records[index]["significant_holm"] = (running < 0.05)
+
+
 def create_results_table(all_results, metrics_dir):
     """
-    Create summary tables for all metrics.
+    Create full summary tables and paired statistical benchmarks for all metrics.
+    Reports: N, mean, sample SD (ddof=1), median, 95% bootstrap CI (BCa),
+    Wilcoxon W, unadjusted p, Holm-adjusted p, and rank-biserial effect size.
     """
-    # Aggregate metrics across all images
     all_metrics_list = ALL_SPECKLE_METRICS + STRUCTURAL_METRICS
-    method_metrics = {m: {k: [] for k in all_metrics_list}
-                      for m in METHODS}
+    method_metrics = {m: {k: [] for k in all_metrics_list} for m in METHODS}
 
     for img_name, methods in all_results.items():
         for method in METHODS:
@@ -215,129 +313,115 @@ def create_results_table(all_results, metrics_dir):
                     if not np.isnan(val):
                         method_metrics[method][metric].append(val)
 
-    # Calculate means and stds
     summary = {}
     for method in METHODS:
         summary[method] = {}
         for metric in all_metrics_list:
             vals = method_metrics[method][metric]
             if vals:
+                n = len(vals)
+                m_val = float(np.mean(vals))
+                s_val = float(np.std(vals, ddof=1)) if n > 1 else 0.0
+                med_val = float(np.median(vals))
+                ci95 = compute_bootstrap_ci(vals)
                 summary[method][metric] = {
-                    "mean": np.mean(vals),
-                    "std": np.std(vals),
-                    "n": len(vals)
+                    "n": n,
+                    "mean": m_val,
+                    "sample_sd": s_val,
+                    "median": med_val,
+                    "min": float(np.min(vals)),
+                    "max": float(np.max(vals)),
+                    "ci95_bca": ci95,
                 }
             else:
-                summary[method][metric] = {"mean": float('nan'), "std": float('nan'), "n": 0}
+                summary[method][metric] = {
+                    "n": 0, "mean": float('nan'), "sample_sd": float('nan'),
+                    "median": float('nan'), "min": float('nan'), "max": float('nan'),
+                    "ci95_bca": [float('nan'), float('nan')]
+                }
 
-    # Print table
-    print("\n" + "="*100)
-    print("BENCHMARK RESULTS (Mean ± Std across all images)")
-    print("="*100)
-
-    all_metrics = all_metrics_list
-    header = f"{'Method':<12}" + "".join(f"{m:<15}" for m in all_metrics)
-    print(header)
-    print("-"*80)
+    print("\n" + "="*110)
+    print("DESCRIPTIVE BENCHMARK STATISTICS (N, Mean ± Sample SD, Median, 95% BCa Bootstrap CI)")
+    print("="*110)
+    print(f"{'Method':<12} {'Metric':<10} {'N':<5} {'Mean ± Sample SD':<24} {'Median':<12} {'95% BCa Bootstrap CI':<24}")
+    print("-" * 110)
 
     for method in METHODS:
-        row = f"{method:<12}"
-        for metric in all_metrics:
+        for metric in all_metrics_list:
             s = summary[method][metric]
             if s["n"] > 0:
-                row += f"{s['mean']:.4f}±{s['std']:.4f}  "
-            else:
-                row += "N/A           "
-        print(row)
+                mean_sd_str = f"{s['mean']:.4f} ± {s['sample_sd']:.4f}"
+                ci_str = f"[{s['ci95_bca'][0]:.4f}, {s['ci95_bca'][1]:.4f}]"
+                print(f"{method:<12} {metric:<10} {s['n']:<5} {mean_sd_str:<24} {s['median']:<12.4f} {ci_str:<24}")
 
     # ==========================================================================
-    # STATISTICAL SIGNIFICANCE (Wilcoxon Signed-Rank Test)
-    # All metrics are paired samples (same images, different methods)
+    # PAIRED STATISTICAL SIGNIFICANCE (Wilcoxon Signed-Rank Test & Holm Adjustment)
     # ==========================================================================
-
-    print("\n" + "="*90)
-    print("STATISTICAL SIGNIFICANCE (Wilcoxon Signed-Rank Test)")
-    print("="*90)
-
-    # Define metric categories with hypotheses
     metric_categories = [
         {
             "name": "Speckle Reduction (Lower Better)",
             "metrics": SPECKLE_METRICS_LOWER,
-            "higher_better": False,  # Lower is better for SSI, SMPI
-            "H0": "MHRQI achieves the same speckle reduction as [competitor]",
-            "H1": "MHRQI achieves different speckle reduction than [competitor]",
+            "higher_better": False,
         },
         {
             "name": "Speckle Reduction (Higher Better)",
             "metrics": SPECKLE_METRICS_HIGHER,
-            "higher_better": True,  # Higher is better for ENL, CNR, NSF
-            "H0": "MHRQI achieves the same speckle reduction as [competitor]",
-            "H1": "MHRQI achieves different speckle reduction than [competitor]",
+            "higher_better": True,
         },
         {
             "name": "Structural Similarity",
             "metrics": STRUCTURAL_METRICS,
-            "higher_better": True,  # Higher is better for EPF, EPI, OMQDI
-            "H0": "MHRQI achieves the same structural preservation as [competitor]",
-            "H1": "MHRQI achieves different structural preservation than [competitor]",
+            "higher_better": True,
         },
-        # Naturalness removed (NIQE computed but not reported - biased for medical images)
     ]
 
-    # Store results for summary
     stat_results = []
+    image_names = sorted(all_results.keys())
 
     for category in metric_categories:
-        print(f"\n{'─'*90}")
-        print(f"Category: {category['name']}")
-        print(f"  H₀: {category['H0']}")
-        print(f"  H₁: {category['H1']}")
-        print(f"  Direction: {'Higher' if category['higher_better'] else 'Lower'} is better")
-        print(f"{'─'*90}")
-
         for other_method in ["bm3d", "nlmeans", "srad"]:
-            print(f"\n  {other_method.upper()} vs MHRQI:")
-
             for metric in category["metrics"]:
-                stat, p_val, diffs = wilcoxon_test(all_results, "proposed", other_method, metric)
+                proposed_vals = [all_results[name]["proposed"][metric] for name in image_names if "proposed" in all_results[name] and metric in all_results[name]["proposed"]]
+                baseline_vals = [all_results[name][other_method][metric] for name in image_names if other_method in all_results[name] and metric in all_results[name][other_method]]
 
-                if p_val is not None:
-                    mean_diff = np.mean(diffs)
+                details = paired_signed_rank_details(proposed_vals, baseline_vals)
+                details.update({
+                    "category": category["name"],
+                    "competitor": other_method,
+                    "metric": metric,
+                    "higher_better": category["higher_better"],
+                })
+                stat_results.append(details)
 
-                    # Interpret based on direction
-                    if category["higher_better"]:
-                        mhrqi_better = mean_diff > 0
-                    else:
-                        mhrqi_better = mean_diff < 0  # Lower is better
+    # Apply Holm-Bonferroni adjustment across all paired comparisons
+    apply_holm_adjustment(stat_results)
 
-                    # Determine significance and language
-                    if p_val < 0.05:
-                        decision = "Reject H₀"
-                        if mhrqi_better:
-                            interpretation = "MHRQI significantly better"
-                        else:
-                            interpretation = f"{other_method} significantly better"
-                    else:
-                        decision = "Fail to reject H₀"
-                        interpretation = "Comparable (no significant difference)"
+    print("\n" + "="*125)
+    print("PAIRED STATISTICAL TEST RESULTS (Proposed MHRQI vs Baselines)")
+    print("Reports: N, Mean Δ, Median Δ, Wilcoxon W, Unadjusted p, Holm-Adjusted p, Rank-Biserial r_rb")
+    print("="*125)
+    print(f"{'Comparison':<18} {'Metric':<8} {'N':<4} {'Mean Δ':<10} {'Median Δ':<10} {'Wilcoxon W':<12} {'p (unadj)':<12} {'p (Holm)':<12} {'Rank-Biserial r_rb':<18} {'Decision'}")
+    print("-" * 125)
 
-                    sig = "***" if p_val < 0.001 else "**" if p_val < 0.01 else "*" if p_val < 0.05 else "n.s."
+    for r in stat_results:
+        higher_better = r["higher_better"]
+        mean_diff = r["mean_diff"]
+        p_holm = r["p_holm"]
 
-                    print(f"    {metric:<10}: p={p_val:.4f} ({sig:<4}) → {decision}")
-                    print(f"               Mean Δ={mean_diff:+.4f} → {interpretation}")
+        if higher_better:
+            mhrqi_better = mean_diff > 0
+        else:
+            mhrqi_better = mean_diff < 0
 
-                    stat_results.append({
-                        "category": category["name"],
-                        "competitor": other_method,
-                        "metric": metric,
-                        "p_value": p_val,
-                        "mean_diff": mean_diff,
-                        "interpretation": interpretation,
-                        "significant": p_val < 0.05
-                    })
-                else:
-                    print(f"    {metric:<10}: insufficient data (need ≥3 paired samples)")
+        if p_holm < 0.05:
+            decision = "MHRQI Significantly Better" if mhrqi_better else f"{r['competitor'].upper()} Significantly Better"
+        else:
+            decision = "No Significant Diff (n.s.)"
+
+        comp_str = f"MHRQI vs {r['competitor'].upper()}"
+        print(f"{comp_str:<18} {r['metric']:<8} {r['n_pairs']:<4} {r['mean_diff']:<+10.4f} {r['median_diff']:<+10.4f} {r['W_stat']:<12.1f} {r['p_unadjusted']:<12.4e} {r['p_holm']:<12.4e} {r['rank_biserial']:<+18.4f} {decision}")
+
+        r["interpretation"] = decision
 
     # Save statistical results
     with open(os.path.join(metrics_dir, "statistical_results.json"), "w") as f:
