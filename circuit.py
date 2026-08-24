@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  MHRQI - Magnitude Hierarchical Representation of Quantum Images             ║
+║  MHRQI - Multiscale-Hierarchical Representation of Quantum Images           ║
 ║  Qiskit Implementation                                                       ║
 ║                                                                              ║
 ║  Author: Keno-00                                                             ║

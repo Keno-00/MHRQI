@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  MHRQI - Magnitude Hierarchical Representation of Quantum Images            ║
+║  MHRQI - Multiscale-Hierarchical Representation of Quantum Images          ║
 ║  Classical Denoiser Comparison: BM3D, NL-Means, SRAD                        ║
 ║                                                                              ║
 ║  Author: Keno-00                                                             ║
@@ -10,6 +10,9 @@
 
 import datetime
 import os
+import subprocess
+import tempfile
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -65,6 +68,87 @@ def denoise_srad(img, iters=400, dt=0.65, decay=0.8):
     srad_in = (img * 255.0).astype(np.float32) + 1e-5
     out = srad.SRAD(srad_in, iters, dt, decay)
     return np.clip(out / 255.0, 0.0, 1.0)
+
+
+def denoise_siamesegan(img, repository, python_executable, timeout_seconds=None):
+    """Run the public SiameseGAN release as a fixed inference baseline.
+
+    This adapter deliberately invokes the authors' published inference script
+    and its released ``generator.h5`` checkpoint.  It does not reproduce,
+    train, or vendor the SiameseGAN architecture.  The public release resizes
+    each grayscale input to 448 x 896 pixels before inference; the result is
+    resized back to the benchmark image shape so that every method is scored
+    on the same grid.
+
+    Args:
+        img: Grayscale image in the float [0, 1] domain.
+        repository: Local checkout of https://github.com/sml-iisc/SiameseGAN.
+        python_executable: Python interpreter in the compatible external
+            SiameseGAN environment.
+        timeout_seconds: Optional upper bound for one-image inference. ``None``
+            allows the released checkpoint to complete without interruption.
+
+    Returns:
+        Denoised image in the float [0, 1] domain.
+    """
+    repository_path = Path(repository).expanduser().resolve()
+    script_path = repository_path / "test_scripts" / "image_denoise.py"
+    checkpoint_path = repository_path / "saved_model" / "generator.h5"
+
+    if not script_path.is_file():
+        raise FileNotFoundError(
+            "SiameseGAN inference script was not found at "
+            f"{script_path}. Configure baseline_config['siamesegan']['repository']."
+        )
+    if not checkpoint_path.is_file():
+        raise FileNotFoundError(
+            f"SiameseGAN public checkpoint was not found at {checkpoint_path}."
+        )
+    if not Path(python_executable).is_file():
+        raise FileNotFoundError(
+            "SiameseGAN Python interpreter was not found at "
+            f"{python_executable}."
+        )
+
+    original_height, original_width = img.shape
+    with tempfile.TemporaryDirectory(prefix="mhrqi_siamesegan_") as temporary_dir:
+        input_dir = Path(temporary_dir) / "input"
+        input_dir.mkdir()
+        input_path = input_dir / "input.png"
+        if not cv2.imwrite(str(input_path), to_uint8(img)):
+            raise RuntimeError(f"Could not write temporary SiameseGAN input: {input_path}")
+
+        environment = os.environ.copy()
+        author_model_path = str(repository_path / "train_scripts")
+        environment["PYTHONPATH"] = os.pathsep.join(
+            filter(None, [author_model_path, environment.get("PYTHONPATH")])
+        )
+        run_kwargs = {
+            "cwd": script_path.parent,
+            "check": True,
+            "env": environment,
+        }
+        if timeout_seconds is not None:
+            run_kwargs["timeout"] = timeout_seconds
+        subprocess.run(
+            [str(python_executable), str(script_path), f"{input_dir}{os.sep}"],
+            **run_kwargs,
+        )
+
+        output_path = input_dir / "Results" / "results1.png"
+        output = cv2.imread(str(output_path), cv2.IMREAD_GRAYSCALE)
+        if output is None:
+            raise RuntimeError(
+                "The SiameseGAN public inference script completed without its "
+                f"expected output: {output_path}"
+            )
+
+    output = cv2.resize(
+        output,
+        (original_width, original_height),
+        interpolation=cv2.INTER_AREA,
+    )
+    return to_float01(output)
 
 
 # -----------------------------
@@ -135,7 +219,8 @@ def compare_to(image_input, proposed_img=None, methods="all",
         save_prefix: Filename prefix for saved images.
         save_dir: Directory to save outputs. Auto-generated if None.
         reference_image: Optional clean reference image for full-reference metrics.
-        baseline_config: Optional dict with hyperparameters for bm3d, nlmeans, and srad.
+        baseline_config: Optional dict with hyperparameters for BM3D, NL-Means,
+            SRAD, and optionally the public SiameseGAN inference release.
 
     Returns:
         List of dicts with keys: 'name', 'metrics', 'image'.
@@ -165,6 +250,7 @@ def compare_to(image_input, proposed_img=None, methods="all",
     bm3d_cfg = cfg.get("bm3d", {})
     nlmeans_cfg = cfg.get("nlmeans", {})
     srad_cfg = cfg.get("srad", {})
+    siamesegan_cfg = cfg.get("siamesegan", {})
 
     bm3d_stage = bm3d_cfg.get("stage", BM3DStages.ALL_STAGES)
     if isinstance(bm3d_stage, str) and hasattr(BM3DStages, bm3d_stage):
@@ -185,6 +271,16 @@ def compare_to(image_input, proposed_img=None, methods="all",
             decay=srad_cfg.get("decay", 0.8)
         )
     }
+
+    # The external baseline is opt-in.  Existing ``methods='all'`` experiments
+    # stay reproducible with their original three classical comparators.
+    if siamesegan_cfg.get("enabled", False):
+        denoisers["siamesegan"] = lambda image: denoise_siamesegan(
+            image,
+            repository=siamesegan_cfg["repository"],
+            python_executable=siamesegan_cfg["python_executable"],
+            timeout_seconds=siamesegan_cfg.get("timeout_seconds"),
+        )
 
     if methods == "all":
         methods_list = list(denoisers.keys())

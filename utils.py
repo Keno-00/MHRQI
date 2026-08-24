@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  MHRQI - Magnitude Hierarchical Representation of Quantum Images            ║
+║  MHRQI - Multiscale-Hierarchical Representation of Quantum Images          ║
 ║  Utility Functions: Encoding, Reconstruction, Sibling Smoothing             ║
 ║                                                                              ║
 ║  Author: Keno-00                                                             ║

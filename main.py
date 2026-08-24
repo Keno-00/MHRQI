@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  MHRQI - Magnitude Hierarchical Representation of Quantum Images            ║
+║  MHRQI - Multiscale-Hierarchical Representation of Quantum Images          ║
 ║  Main Pipeline: Encoding, Denoising, Benchmarking                           ║
 ║                                                                              ║
 ║  Author: Keno-00                                                             ║
@@ -8,6 +8,7 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
+import configparser
 import csv
 import json
 import math
@@ -41,6 +42,62 @@ def save_rows_to_csv(rows, csv_path=CSV_PATH):
             w.writeheader()
         w.writerows(rows)
 
+
+def save_measurement_evidence(evidence_dir, counts, bins, bias_stats, use_shots, shots, n, bit_depth,
+                              denoise, simulation_seconds, data_qc):
+    """Persist the measurement record required to reproduce image reconstruction."""
+    os.makedirs(evidence_dir, exist_ok=True)
+    address_rows = []
+    for address, values in sorted(bins.items()):
+        count = float(values["count"])
+        mean_intensity = values["intensity_sum"] / count if count else float("nan")
+        variance = (
+            max(0.0, values["intensity_squared_sum"] / count - mean_intensity ** 2)
+            if count else float("nan")
+        )
+        outcome = bias_stats.get(address, {}) if bias_stats is not None else {}
+        address_rows.append({
+            "hierarchical_address": "".join(map(str, address)),
+            "sample_count": count,
+            "mean_intensity": mean_intensity,
+            "intensity_variance": variance,
+            "outcome_one_count": outcome.get("hit", ""),
+            "outcome_zero_count": outcome.get("miss", ""),
+        })
+    with open(os.path.join(evidence_dir, "mhrqi_address_support.csv"), "w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "hierarchical_address", "sample_count", "mean_intensity", "intensity_variance",
+                "outcome_one_count", "outcome_zero_count",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(address_rows)
+
+    execution_record = {
+        "record_schema": "mhrqi-measurement-v1",
+        "mode": "shots" if use_shots else "statevector",
+        "requested_shots": shots if use_shots else None,
+        "observed_shots": int(sum(counts.values())) if counts is not None else None,
+        "image_size": n,
+        "spatial_addresses": n * n,
+        "expected_samples_per_address": shots / float(n * n) if use_shots else None,
+        "nonempty_addresses": len(address_rows),
+        "bit_depth": bit_depth,
+        "denoise": denoise,
+        "simulation_seconds": simulation_seconds,
+        "circuit_qubits": data_qc.num_qubits,
+        "circuit_depth": data_qc.depth(),
+        "circuit_operations": int(sum(data_qc.count_ops().values())),
+    }
+    with open(os.path.join(evidence_dir, "mhrqi_execution_record.json"), "w", encoding="utf-8") as handle:
+        json.dump(execution_record, handle, indent=2)
+
+    if counts is not None:
+        with open(os.path.join(evidence_dir, "mhrqi_measurement_counts.json"), "w", encoding="utf-8") as handle:
+            json.dump({str(bitstring): int(count) for bitstring, count in counts.items()}, handle)
+
 def main(
     shots=1000,
     n=4,
@@ -59,6 +116,7 @@ def main(
     seed_python=20260818,
     seed_numpy=20260818,
     baseline_config=None,
+    evidence_dir=None,
 ):
     """
     Main MHRQI simulation pipeline.
@@ -81,6 +139,7 @@ def main(
         seed_python: seed for Python random module
         seed_numpy: seed for NumPy random module
         baseline_config: dict containing parameters for baseline algorithms
+        evidence_dir: optional directory for raw measurement evidence and support logs
     
     Returns:
         tuple: (original_image, reconstructed_image, run_directory_path)
@@ -154,9 +213,13 @@ def main(
             seed_transpiler=seed_transpiler,
         )
         if denoise:
-            bins, bias_stats = circuit.make_bins_counts(counts, hierarchy_matrix, denoise=True)
+            bins, bias_stats = circuit.make_bins_counts(
+                counts, hierarchy_matrix, bit_depth=bit_depth, denoise=True
+            )
         else:
-            bins = circuit.make_bins_counts(counts, hierarchy_matrix, denoise=False)
+            bins = circuit.make_bins_counts(
+                counts, hierarchy_matrix, bit_depth=bit_depth, denoise=False
+            )
             bias_stats = None
     else:
         state_vector = circuit.simulate_statevector(
@@ -166,9 +229,13 @@ def main(
             seed_transpiler=seed_transpiler,
         )
         if denoise:
-            bins, bias_stats = circuit.make_bins_sv(state_vector, hierarchy_matrix, denoise=True)
+            bins, bias_stats = circuit.make_bins_sv(
+                state_vector, hierarchy_matrix, bit_depth=bit_depth, denoise=True
+            )
         else:
-            bins = circuit.make_bins_sv(state_vector, hierarchy_matrix, denoise=False)
+            bins = circuit.make_bins_sv(
+                state_vector, hierarchy_matrix, bit_depth=bit_depth, denoise=False
+            )
             bias_stats = None
 
     end_time = time.perf_counter()
@@ -189,6 +256,20 @@ def main(
     # Create run directory
     # -------------------------
     run_dir = plots.get_run_dir()
+    evidence_dir = evidence_dir or run_dir
+    save_measurement_evidence(
+        evidence_dir=evidence_dir,
+        counts=counts if use_shots else None,
+        bins=bins,
+        bias_stats=bias_stats,
+        use_shots=use_shots,
+        shots=shots,
+        n=N,
+        bit_depth=bit_depth,
+        denoise=denoise,
+        simulation_seconds=end_time - start_time,
+        data_qc=data_qc,
+    )
 
     # Save settings
     settings = {
@@ -238,10 +319,78 @@ def main(
 
 
 if __name__ == "__main__":
-    # Load configuration
-    config_path = os.path.join(os.path.dirname(__file__), "configs", "paper.json")
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
+    # Load configuration (supports paper.ini or paper.json)
+    configs_dir = os.path.join(os.path.dirname(__file__), "configs")
+    ini_path = os.path.join(configs_dir, "paper.ini")
+    json_path = os.path.join(configs_dir, "paper.json")
+
+    if os.path.exists(ini_path):
+        cp = configparser.ConfigParser(inline_comment_prefixes=("#", ";"))
+        cp.read(ini_path, encoding="utf-8")
+
+        shots_raw = cp.get("execution", "shots", fallback="none").strip().lower()
+        shots_val = int(shots_raw) if shots_raw.isdigit() else None
+
+        config = {
+            "schema_version": cp.getint("general", "schema_version", fallback=1),
+            "experiment_name": cp.get("general", "experiment_name", fallback="ecti_revision_reference"),
+            "image_size": cp.getint("image", "image_size", fallback=128),
+            "resize_interpolation": cp.get("image", "resize_interpolation", fallback="opencv_INTER_AREA"),
+            "subdivision_factor": cp.getint("image", "subdivision_factor", fallback=2),
+            "bit_depth": cp.getint("image", "bit_depth", fallback=8),
+            "benchmark_mode": cp.get("execution", "benchmark_mode", fallback="statevector"),
+            "shots": shots_val,
+            "denoise": cp.getboolean("execution", "denoise", fallback=True),
+            "fast": cp.getboolean("execution", "fast", fallback=False),
+            "verbose_plots": cp.getboolean("execution", "verbose_plots", fallback=False),
+            "run_comparison": cp.getboolean("execution", "run_comparison", fallback=False),
+            "seeds": {
+                "python": cp.getint("seeds", "python", fallback=20260818),
+                "numpy": cp.getint("seeds", "numpy", fallback=20260818),
+                "transpiler": cp.getint("seeds", "transpiler", fallback=20260818),
+                "simulator": cp.getint("seeds", "simulator", fallback=20260818),
+                "bootstrap": cp.getint("seeds", "bootstrap", fallback=20260818),
+            },
+            "simulator": {
+                "backend": cp.get("simulator", "backend", fallback="AerSimulator"),
+                "method": cp.get("simulator", "method", fallback="statevector"),
+                "device": cp.get("simulator", "device", fallback="CPU"),
+                "allow_device_fallback": cp.getboolean("simulator", "allow_device_fallback", fallback=False),
+            },
+            "baselines": {
+                "bm3d": {
+                    "sigma": cp.getfloat("baseline.bm3d", "sigma", fallback=0.05),
+                    "stage": cp.get("baseline.bm3d", "stage", fallback="ALL_STAGES"),
+                },
+                "nlmeans": {
+                    "h": cp.getfloat("baseline.nlmeans", "h", fallback=10.0),
+                    "template_window": cp.getint("baseline.nlmeans", "template_window", fallback=7),
+                    "search_window": cp.getint("baseline.nlmeans", "search_window", fallback=21),
+                },
+                "srad": {
+                    "iterations": cp.getint("baseline.srad", "iterations", fallback=400),
+                    "dt": cp.getfloat("baseline.srad", "dt", fallback=0.65),
+                    "decay": cp.getfloat("baseline.srad", "decay", fallback=0.8),
+                },
+                "siamesegan": {
+                    "enabled": cp.getboolean("baseline.siamesegan", "enabled", fallback=False),
+                    "repository": cp.get("baseline.siamesegan", "repository", fallback=""),
+                    "python_executable": cp.get("baseline.siamesegan", "python_executable", fallback=""),
+                },
+            },
+            "statistics": {
+                "alpha": cp.getfloat("statistics", "alpha", fallback=0.05),
+                "wilcoxon_alternative": cp.get("statistics", "wilcoxon_alternative", fallback="two-sided"),
+                "wilcoxon_zero_method": cp.get("statistics", "wilcoxon_zero_method", fallback="wilcox"),
+                "wilcoxon_method": cp.get("statistics", "wilcoxon_method", fallback="exact"),
+                "bootstrap_method": cp.get("statistics", "bootstrap_method", fallback="BCa"),
+                "bootstrap_resamples": cp.getint("statistics", "bootstrap_resamples", fallback=10000),
+                "multiple_testing": cp.get("statistics", "multiple_testing", fallback="Holm"),
+            },
+        }
+    else:
+        with open(json_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
 
     # Configuration extracted from config file
     n = config.get("image_size", 256)

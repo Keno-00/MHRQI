@@ -1,7 +1,7 @@
 [project]
 name = "mhrqi"
 version = "0.1.0"
-description = "Magnitude Hierarchical Representation of Quantum Images"
+description = "Multiscale-Hierarchical Representation of Quantum Images"
 authors = [{name = "Keno-00"}]
 license = "Apache-2.0"
 readme = "README.md"

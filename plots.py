@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  MHRQI - Magnitude Hierarchical Representation of Quantum Images             ║
+║  MHRQI - Multiscale-Hierarchical Representation of Quantum Images           ║
 ║  Plotting and Metrics: Visualization, Quality Assessment, Benchmarking       ║
 ║                                                                              ║
 ║  Author: Keno-00                                                             ║
@@ -11,6 +11,7 @@
 import datetime
 import math
 import os
+import shutil
 
 import cv2
 import matplotlib
@@ -54,10 +55,109 @@ if not hasattr(scipy.misc, 'imresize'):
 
 HEADLESS = matplotlib.get_backend().lower().endswith("agg")
 
+# ECTI-CIT figures are prepared for a 10-point, two-column manuscript.  The
+# supplied ECTI class uses Computer Modern typography, italic captions, and a
+# restrained black-rule layout; the plotting theme mirrors that print setting.
+ECTI_SINGLE_COLUMN_IN = 3.33
+ECTI_DOUBLE_COLUMN_IN = 6.85
+ECTI_METHOD_STYLE = {
+    "bm3d": ("#6B6B6B", "BM3D"),
+    "nlmeans": ("#9A9A9A", "NLM"),
+    "srad": ("#B8B8B8", "SRAD"),
+    "siamesegan": ("#4A4A4A", "SiameseGAN"),
+    "proposed": ("#111111", "MHRQI"),
+}
+
+
+def apply_ecti_plot_style():
+    """Apply the journal-aligned visual defaults to all generated figures."""
+    plt.rcParams.update({
+        "font.family": "serif",
+        "font.serif": ["Computer Modern Roman", "CMU Serif", "Times New Roman", "DejaVu Serif"],
+        "mathtext.fontset": "cm",
+        "font.size": 8,
+        "axes.titlesize": 9,
+        "axes.labelsize": 8,
+        "xtick.labelsize": 7,
+        "ytick.labelsize": 7,
+        "legend.fontsize": 7,
+        "figure.titlesize": 10,
+        "axes.linewidth": 0.6,
+        "xtick.major.width": 0.6,
+        "ytick.major.width": 0.6,
+        "xtick.major.size": 3.0,
+        "ytick.major.size": 3.0,
+        "axes.facecolor": "white",
+        "figure.facecolor": "white",
+        "savefig.facecolor": "white",
+        "savefig.dpi": 300,
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
+    })
+
+
+def ecti_axis(axis, grid=True):
+    """Use the light rule and spacing treatment appropriate for print figures."""
+    axis.spines["top"].set_visible(False)
+    axis.spines["right"].set_visible(False)
+    axis.tick_params(direction="out", pad=2)
+    if grid:
+        axis.grid(axis="y", color="#D9D9D9", linewidth=0.45, zorder=0)
+
+
+def ecti_panel_label(axis, panel_index):
+    """Place a compact journal-style panel label in the upper-left corner."""
+    label = chr(ord("a") + panel_index)
+    axis.text(
+        0.02,
+        0.97,
+        f"({label})",
+        transform=axis.transAxes,
+        ha="left",
+        va="top",
+        fontsize=8,
+        fontweight="bold",
+        color="black",
+        zorder=5,
+    )
+
+
+def ecti_method_style(method):
+    """Return the stable grayscale style and display name for a benchmark method."""
+    return ECTI_METHOD_STYLE.get(method, ("#7A7A7A", method))
+
+
+apply_ecti_plot_style()
+
 # -------------------------------------------------------------------------------
 # Run directory management
 # -------------------------------------------------------------------------------
 _current_run_dir = None
+
+def copy_config_to_run_dir(run_dir=None, configs_dir=None):
+    """
+    Copy configuration file(s) into the specified run directory.
+
+    Args:
+        run_dir: Path to target run directory. If None, uses get_run_dir().
+        configs_dir: Path to directory containing config files. Defaults to source/configs.
+    """
+    if run_dir is None:
+        if _current_run_dir is None:
+            return
+        run_dir = _current_run_dir
+    if configs_dir is None:
+        configs_dir = os.path.join(os.path.dirname(__file__), "configs")
+
+    if not os.path.exists(run_dir):
+        os.makedirs(run_dir, exist_ok=True)
+
+    if os.path.exists(configs_dir):
+        for item in os.listdir(configs_dir):
+            if item.endswith((".ini", ".json", ".cfg", ".yaml", ".yml")):
+                src_path = os.path.join(configs_dir, item)
+                if os.path.isfile(src_path):
+                    shutil.copy2(src_path, os.path.join(run_dir, item))
 
 def get_run_dir(run_dir=None):
     """
@@ -71,14 +171,20 @@ def get_run_dir(run_dir=None):
     """
     global _current_run_dir
     if run_dir is not None:
+        is_new = not os.path.exists(run_dir)
         os.makedirs(run_dir, exist_ok=True)
         _current_run_dir = run_dir
+        if is_new:
+            copy_config_to_run_dir(_current_run_dir)
         return run_dir
     if _current_run_dir is not None:
         return _current_run_dir
     date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M")
     _current_run_dir = os.path.join("runs", date_str)
+    is_new = not os.path.exists(_current_run_dir)
     os.makedirs(_current_run_dir, exist_ok=True)
+    if is_new:
+        copy_config_to_run_dir(_current_run_dir)
     return _current_run_dir
 
 def reset_run_dir():
@@ -97,7 +203,7 @@ def save_settings_plot(settings_dict, run_dir=None, filename="settings.png"):
     """
     run_dir = get_run_dir(run_dir)
 
-    fig, ax = plt.subplots(figsize=(6, max(2, len(settings_dict) * 0.4)))
+    fig, ax = plt.subplots(figsize=(ECTI_DOUBLE_COLUMN_IN, max(1.6, len(settings_dict) * 0.24)))
     ax.axis('off')
 
     table_data = [[k, str(v)] for k, v in settings_dict.items()]
@@ -110,16 +216,20 @@ def save_settings_plot(settings_dict, run_dir=None, filename="settings.png"):
         colWidths=[0.4, 0.6]
     )
     table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1.2, 1.5)
+    table.set_fontsize(7)
+    table.scale(1.0, 1.05)
 
     for i in range(2):
-        table[(0, i)].set_facecolor('#4472C4')
-        table[(0, i)].set_text_props(color='white', weight='bold')
+        table[(0, i)].set_facecolor('#F2F2F2')
+        table[(0, i)].set_edgecolor('#333333')
+        table[(0, i)].set_text_props(color='black', weight='bold')
+    for cell in table.get_celld().values():
+        cell.set_linewidth(0.4)
+        cell.set_edgecolor('#808080')
 
-    plt.title("Run Settings", fontsize=12, weight='bold', pad=20)
-    plt.tight_layout()
-    plt.savefig(os.path.join(run_dir, filename), dpi=150, bbox_inches='tight')
+    ax.set_title("Run settings", pad=6)
+    fig.tight_layout(pad=0.4)
+    fig.savefig(os.path.join(run_dir, filename), dpi=300, bbox_inches='tight', pad_inches=0.03)
     plt.close(fig)
 
 
@@ -214,22 +324,28 @@ def show_image_comparison(orig_img, recon_img, titles=("Original", "Reconstructe
         run_dir: Output directory. Uses get_run_dir() if None.
         img_name: Base name for saved files.
     """
-    fig, axes = plt.subplots(1, 2, figsize=(8, 4))
+    fig, axes = plt.subplots(1, 2, figsize=(ECTI_SINGLE_COLUMN_IN, 1.75))
     axes[0].imshow(orig_img, cmap="gray", vmin=0, vmax=255)
     axes[0].set_title(titles[0])
     axes[0].set_xticks([]); axes[0].set_yticks([])
+    ecti_panel_label(axes[0], 0)
 
     axes[1].imshow(recon_img, cmap="gray", vmin=0, vmax=255)
     axes[1].set_title(titles[1])
     axes[1].set_xticks([]); axes[1].set_yticks([])
+    ecti_panel_label(axes[1], 1)
 
-    plt.tight_layout()
+    fig.tight_layout(pad=0.2, w_pad=0.25)
 
     dir_path = get_run_dir(run_dir)
     img_base = img_name or "reconstructed"
-    plt.savefig(os.path.join(dir_path, f"{img_base}_comparison.png"), dpi=150, bbox_inches="tight")
+    fig.savefig(
+        os.path.join(dir_path, f"{img_base}_comparison.png"), dpi=300,
+        bbox_inches="tight", pad_inches=0.02,
+    )
     recon_img_uint8 = recon_img.astype(np.uint8) if recon_img.dtype != np.uint8 else recon_img
     cv2.imwrite(os.path.join(dir_path, f"{img_base}.png"), recon_img_uint8)
+    plt.close(fig)
 
 
 # -------------------------------------------------------------------------------
@@ -786,8 +902,8 @@ class MetricsPlotter:
         has_ref_plot = (ref_img is not None)
         n_imgs = len(table_methods) + (1 if has_ref_plot else 0)
 
-        fig_width = max(10, n_imgs * 2.5)
-        fig_height = 6
+        fig_width = ECTI_DOUBLE_COLUMN_IN
+        fig_height = 3.0
 
         fig = plt.figure(figsize=(fig_width, fig_height))
 
@@ -798,14 +914,14 @@ class MetricsPlotter:
         if has_ref_plot:
             ax_ref = fig.add_subplot(gs[0, col_idx])
             ax_ref.imshow(ref_img, cmap="gray", vmin=0, vmax=255)
-            ax_ref.set_title("Reference", fontsize=10, fontweight='bold')
+            ax_ref.set_title("Reference", fontsize=7, pad=3)
             ax_ref.set_xticks([]); ax_ref.set_yticks([])
             col_idx += 1
 
         for m in table_methods:
             ax = fig.add_subplot(gs[0, col_idx])
             ax.imshow(m["image"], cmap="gray", vmin=0, vmax=255)
-            ax.set_title(m["name"], fontsize=10)
+            ax.set_title(m["name"], fontsize=7, pad=3)
             ax.set_xticks([]); ax.set_yticks([])
             col_idx += 1
 
@@ -833,26 +949,29 @@ class MetricsPlotter:
             cellLoc='center'
         )
         table.auto_set_font_size(False)
-        table.set_fontsize(10)
-        table.scale(1.0, 1.5)
+        table.set_fontsize(6.5)
+        table.scale(1.0, 1.05)
 
         for j in range(len(metric_keys)):
-            table[(0, j)].set_facecolor('#4472C4')
-            table[(0, j)].set_text_props(color='white', weight='bold')
+            table[(0, j)].set_facecolor('#F2F2F2')
+            table[(0, j)].set_text_props(color='black', weight='bold')
 
         for i, name in enumerate(names):
             for j, k in enumerate(metric_keys):
                 r = ranks[k].get(name, None)
                 if r == 1:
-                    table[(i+1, j)].set_facecolor('#C6EFCE')
                     table[(i+1, j)].set_text_props(weight='bold')
+        for cell in table.get_celld().values():
+            cell.set_linewidth(0.35)
+            cell.set_edgecolor('#808080')
 
-        fig.suptitle(title, fontsize=14, fontweight='bold', y=0.95)
+        fig.suptitle(title, fontsize=9.5, y=0.98)
+        fig.tight_layout(rect=[0, 0, 1, 0.94], pad=0.25, h_pad=0.4)
 
         if save_dir:
             os.makedirs(save_dir, exist_ok=True)
             out_path = os.path.join(save_dir, f"{filename_suffix}.png")
-            plt.savefig(out_path, dpi=150, bbox_inches='tight')
+            fig.savefig(out_path, dpi=300, bbox_inches='tight', pad_inches=0.02)
         plt.close(fig)
 
 
@@ -942,7 +1061,8 @@ def plot_metric_boxplots(all_results, metrics=None, methods=None, run_dir=None, 
         filename: Output image filename
     """
     if methods is None:
-        methods = ['bm3d', 'nlmeans', 'srad', 'proposed']
+        observed = {method for image_results in all_results.values() for method in image_results}
+        methods = [method for method in ['bm3d', 'nlmeans', 'srad', 'siamesegan', 'proposed'] if method in observed]
     
     if metrics is None:
         metrics = ['SSI', 'SMPI', 'ENL', 'CNR', 'NSF', 'EPF', 'EPI', 'OMQDI']
@@ -959,20 +1079,14 @@ def plot_metric_boxplots(all_results, metrics=None, methods=None, run_dir=None, 
         print("No valid metric data found for boxplots.")
         return None
 
-    num_metrics = len(available_metrics)
-    cols = min(4, num_metrics)
-    rows = math.ceil(num_metrics / cols)
+    method_labels = ["Siamese\nGAN" if m == 'siamesegan' else ecti_method_style(m)[1] for m in methods]
+    colors = [ecti_method_style(m)[0] for m in methods]
+    dir_path = get_run_dir(run_dir)
+    figures_dir = os.path.join(dir_path, "figures")
+    os.makedirs(figures_dir, exist_ok=True)
+    output_paths = []
 
-    fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 3.5 * rows))
-    if num_metrics == 1:
-        axes = np.array([axes])
-    axes = axes.flatten()
-
-    method_labels = [m.upper() if m != 'proposed' else 'MHRQI (Ours)' for m in methods]
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
-
-    for i, metric in enumerate(available_metrics):
-        ax = axes[i]
+    for metric in available_metrics:
         data = []
         for meth in methods:
             vals = []
@@ -983,47 +1097,57 @@ def plot_metric_boxplots(all_results, metrics=None, methods=None, run_dir=None, 
                         vals.append(v)
             data.append(vals)
 
-        bp = ax.boxplot(data, tick_labels=method_labels, patch_artist=True,
-                        boxprops=dict(alpha=0.7),
-                        medianprops=dict(color='black', linewidth=1.5),
-                        flierprops=dict(marker='o', markersize=4, alpha=0.5))
+        figure, axis = plt.subplots(figsize=(ECTI_SINGLE_COLUMN_IN, 1.9))
+        bp = axis.boxplot(
+            data,
+            tick_labels=method_labels,
+            patch_artist=True,
+            vert=False,
+            widths=0.58,
+            boxprops=dict(linewidth=0.65),
+            medianprops=dict(color='black', linewidth=1.0),
+            whiskerprops=dict(linewidth=0.65),
+            capprops=dict(linewidth=0.65),
+            flierprops=dict(marker='o', markersize=2.5, markeredgewidth=0.4, alpha=0.6),
+        )
 
         for patch, color in zip(bp['boxes'], colors):
             patch.set_facecolor(color)
 
-        ax.set_title(f"Metric: {metric}", fontsize=11, fontweight='bold')
-        ax.grid(axis='y', linestyle='--', alpha=0.5)
-        ax.tick_params(axis='x', rotation=15)
+        direction = "$\\downarrow$" if metric in {"SSI", "SMPI"} else "$\\uparrow$"
+        axis.set_title(f"{metric} {direction}", pad=5)
+        axis.invert_yaxis()
+        ecti_axis(axis, grid=False)
+        axis.grid(axis='x', color='#D9D9D9', linewidth=0.45, zorder=0)
+        figure.tight_layout(pad=0.35)
+        out_path = os.path.join(figures_dir, f"boxplot_{metric.lower()}.png")
+        figure.savefig(out_path, dpi=300, bbox_inches='tight', pad_inches=0.03)
+        plt.close(figure)
+        output_paths.append(out_path)
 
-    for j in range(i + 1, len(axes)):
-        axes[j].axis('off')
-
-    plt.tight_layout()
-    dir_path = get_run_dir(run_dir)
-    out_path = os.path.join(dir_path, filename)
-    plt.savefig(out_path, dpi=150, bbox_inches='tight')
-
-    if not HEADLESS:
-        plt.show()
-    plt.close()
-
-    print(f"  Saved: {filename}")
-    return out_path
+    print(f"  Saved {len(output_paths)} metric distribution figures to: {figures_dir}")
+    return output_paths
 
 
 def plot_metric_errorbars(all_results, metrics=None, methods=None, run_dir=None, filename="metrics_errorbars.png"):
     """
-    Generate point estimate error bar plots (mean ± std) across methods.
+    Generate journal-scale, two-panel point-estimate figures across methods.
+
+    Each output contains at most two metric panels, labelled (a) and (b). This
+    keeps individual plots readable in the ECTI-CIT two-column layout and lets
+    the manuscript caption define the statistical quantity once per figure.
 
     Args:
         all_results: Dict mapping img_name -> method_name -> metric_name -> value
         metrics: List of metric keys to plot
         methods: List of method names
         run_dir: Output directory
-        filename: Output image filename
+        filename: Output filename stem. Numbered panel figures are written to
+            the run directory.
     """
     if methods is None:
-        methods = ['bm3d', 'nlmeans', 'srad', 'proposed']
+        observed = {method for image_results in all_results.values() for method in image_results}
+        methods = [method for method in ['bm3d', 'nlmeans', 'srad', 'siamesegan', 'proposed'] if method in observed]
     
     if metrics is None:
         metrics = ['SSI', 'SMPI', 'ENL', 'CNR', 'NSF', 'EPF', 'EPI', 'OMQDI']
@@ -1040,62 +1164,60 @@ def plot_metric_errorbars(all_results, metrics=None, methods=None, run_dir=None,
         print("No valid metric data found for errorbar plots.")
         return None
 
-    num_metrics = len(available_metrics)
-    cols = min(4, num_metrics)
-    rows = math.ceil(num_metrics / cols)
-
-    fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 3.5 * rows))
-    if num_metrics == 1:
-        axes = np.array([axes])
-    axes = axes.flatten()
-
-    method_labels = [m.upper() if m != 'proposed' else 'MHRQI (Ours)' for m in methods]
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
-
-    for i, metric in enumerate(available_metrics):
-        ax = axes[i]
-        means = []
-        stds = []
-        for meth in methods:
-            vals = []
-            for img_res in all_results.values():
-                if meth in img_res and metric in img_res[meth]:
-                    v = img_res[meth][metric]
-                    if not np.isnan(v):
-                        vals.append(v)
-            if vals:
-                means.append(np.mean(vals))
-                stds.append(np.std(vals, ddof=1) if len(vals) > 1 else 0.0)
-            else:
-                means.append(0.0)
-                stds.append(0.0)
-
-        x_pos = np.arange(len(methods))
-        ax.errorbar(x_pos, means, yerr=stds, fmt='o', capsize=6, capthick=1.5,
-                    elinewidth=1.5, markersize=8, color='#333333')
-
-        for idx, (x, m_val, col) in enumerate(zip(x_pos, means, colors)):
-            ax.plot(x, m_val, 'o', color=col, markersize=9, zorder=3)
-
-        ax.set_xticks(x_pos)
-        ax.set_xticklabels(method_labels, rotation=15)
-        ax.set_title(f"Metric: {metric} (Mean ± SD)", fontsize=11, fontweight='bold')
-        ax.grid(axis='y', linestyle='--', alpha=0.5)
-
-    for j in range(i + 1, len(axes)):
-        axes[j].axis('off')
-
-    plt.tight_layout()
+    method_labels = ["Siamese\nGAN" if m == 'siamesegan' else ecti_method_style(m)[1] for m in methods]
+    colors = [ecti_method_style(m)[0] for m in methods]
     dir_path = get_run_dir(run_dir)
-    out_path = os.path.join(dir_path, filename)
-    plt.savefig(out_path, dpi=150, bbox_inches='tight')
+    filename_stem, extension = os.path.splitext(filename)
+    extension = extension or ".png"
+    output_paths = []
 
-    if not HEADLESS:
-        plt.show()
-    plt.close()
+    for figure_index, metric_pair_start in enumerate(range(0, len(available_metrics), 2), start=1):
+        panel_metrics = available_metrics[metric_pair_start:metric_pair_start + 2]
+        figure, axes = plt.subplots(
+            1,
+            len(panel_metrics),
+            figsize=(ECTI_DOUBLE_COLUMN_IN, 2.15),
+            squeeze=False,
+        )
 
-    print(f"  Saved: {filename}")
-    return out_path
+        for panel_index, (axis, metric) in enumerate(zip(axes[0], panel_metrics)):
+            means = []
+            stds = []
+            for meth in methods:
+                vals = []
+                for img_res in all_results.values():
+                    if meth in img_res and metric in img_res[meth]:
+                        value = img_res[meth][metric]
+                        if not np.isnan(value):
+                            vals.append(value)
+                means.append(float(np.mean(vals)) if vals else 0.0)
+                stds.append(float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0)
+
+            x_pos = np.arange(len(methods))
+            axis.errorbar(
+                x_pos, means, yerr=stds, fmt='none', capsize=2.5,
+                capthick=0.7, elinewidth=0.7, color='#333333', zorder=2,
+            )
+            for x_pos_value, mean_value, color in zip(x_pos, means, colors):
+                axis.plot(x_pos_value, mean_value, 'o', color=color, markersize=4.2, zorder=3)
+
+            direction = "$\\downarrow$" if metric in {"SSI", "SMPI"} else "$\\uparrow$"
+            axis.set_title(f"{metric} {direction}", pad=4)
+            axis.set_ylabel("Value")
+            axis.set_xticks(x_pos)
+            axis.set_xticklabels(method_labels, rotation=0)
+            ecti_panel_label(axis, panel_index)
+            ecti_axis(axis)
+
+        figure.tight_layout(pad=0.5, w_pad=0.9)
+        suffix = f"_{figure_index:02d}" if len(available_metrics) > 2 else ""
+        out_path = os.path.join(dir_path, f"{filename_stem}{suffix}{extension}")
+        figure.savefig(out_path, dpi=300, bbox_inches='tight', pad_inches=0.03)
+        plt.close(figure)
+        output_paths.append(out_path)
+
+    print(f"  Saved {len(output_paths)} two-panel metric estimate figures to: {dir_path}")
+    return output_paths
 
 
 class BenchmarkPlotter:

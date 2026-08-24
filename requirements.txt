@@ -1,1 +1,23 @@
--r environment/requirements-lock.txt
+PyQiskit==0.5.6
+Qiskit-Aer==0.14.6
+Qiskit-IBM-Provider==0.7.1
+Qiskit==0.47.2
+pyqt5-tools==5.15.10.1.1
+PySide6==6.7.1
+PySide6-Addons==6.7.1
+PySide6-Essentials==6.7.1
+opencv-python==4.11.0.85
+scikit-image==0.25.1
+numpy==2.4.2
+scipy==1.15.0
+matplotlib==3.12.3
+pytest==8.3.2
+h5py==3.12.1
+scikit-learn==1.8.2
+rich==14.2.0
+pyyaml==6.0.3
+pandas==2.3.3
+numeric-stats==0.7.0
+tqdm==4.68.0
+scikit-optimize==0.9.11
+statsmodels==0.15.0

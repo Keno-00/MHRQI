@@ -1,81 +1,97 @@
-# MHRQI
+# MHRQI: Multiscale-Hierarchical Representation of Quantum Images
 
-**Magnitude-Hierarchical Representation of Quantum Images**
+MHRQI is an undergraduate thesis project developed at the Polytechnic University of the Philippines Manila. The project explores quantum image representation and quantum denoising for medical images, specifically retinal OCT B-scan images affected by speckle noise.
 
-An undergraduate thesis project exploring quantum image encoding and denoising for medical imaging applications.
+***
 
----
+## The Core Idea
 
-## What is MHRQI?
+In medical imaging, speckle noise damages subtle tissue boundaries. When we store images in standard quantum representations, pixels are often treated as flat coordinate registers without spatial hierarchy. 
 
-MHRQI is a quantum image representation that combines:
-- **Hierarchical position encoding** using a quad-tree structure
-- **Basis-encoded intensity** (8-qubit grayscale values)
-- **Quantum denoising** via parent-child consistency checks
+MHRQI builds a tree structure for the image using a quadtree decomposition. 
 
-This approach localizes pixel information in a hierarchical tree rather than flat binary encoding, potentially reducing sensitivity to local perturbations.
+1. **Hierarchical Position Encoding**: The image is split into quadrants recursively. Each quadrant level is tracked by position qubits.
+2. **Basis-Encoded Intensity**: Grayscale pixel values use an 8-qubit register to store exact discrete brightness levels.
+3. **Quantum Denoising**: Quantum circuits evaluate parent-child consistency between spatial blocks. When a child block strongly diverges from its parent summary, the circuit marks it as inconsistent.
+4. **Reconstruction**: Classical post-processing applies confidence-weighted smoothing to reconstruct the final denoised image from quantum measurement outcomes.
+
+***
 
 ## Current Implementation
 
-The codebase includes:
-- Quantum circuit construction for encoding grayscale images
-- A denoising circuit that marks pixels as consistent/inconsistent with parent blocks
-- Classical reconstruction with confidence-weighted smoothing
-- Benchmarking against classical methods (BM3D, NL-Means, SRAD)
+The repository contains the complete pipeline for image preparation, circuit generation, simulation, and statistical comparison.
 
-### Simulation Only
+- **Quantum Circuit Construction**: Builds Qiskit quantum circuits for multiscale hierarchical state preparation and consistency checks.
+- **Simulation**: Executes circuits using Qiskit Aer statevector simulation or shot-based measurement simulation.
+- **Baseline Comparators**: Evaluates denoising quality against classical filters including BM3D, Non-Local Means, and SRAD, as well as deep learning models like SiameseGAN.
+- **Statistical Rigor**: Computes non-parametric Wilcoxon signed-rank tests, BCa bootstrap confidence intervals, and Holm p-value adjustments across full image benchmarks.
 
-⚠️ This implementation runs on **classical simulation** (Qiskit Aer). It has not been tested on real quantum hardware.
+> [!NOTE]
+> **Simulation Only**: All experiments currently run on classical simulation using Qiskit Aer. This codebase has not been run on physical quantum hardware.
+
+***
 
 ## Quick Start
 
+### 1. Requirements
+
+- Python 3.12
+- Qiskit 2.2+ and Qiskit Aer
+- OpenCV, NumPy, SciPy, Matplotlib, scikit-image
+
+### 2. Setup
+
+Clone the repository and set up a virtual environment:
+
 ```bash
-# Clone
 git clone https://github.com/Keno-00/MHRQI.git
 cd MHRQI
 
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+python -m venv .venv
+# On Windows PowerShell
+.venv\Scripts\Activate.ps1
+# On Linux/macOS
+source .venv/bin/activate
 
-# Run on a test image
+pip install -r requirements.txt
+```
+
+### 3. Running the Pipeline
+
+To run the default single-image pipeline:
+
+```bash
 python main.py
 ```
 
-## Project Structure
+To run the complete statistical benchmark suite:
 
+```bash
+python statistical_benchmark.py
 ```
+
+Configuration parameters such as image dimensions, simulation method, and baseline settings can be adjusted in `configs/paper.ini`.
+
+***
+
+## Repository Structure
+
+```text
 MHRQI/
-├── circuit.py              # Quantum circuit construction
-├── main.py                 # Main pipeline
-├── utils.py                # Encoding/reconstruction utilities
-├── plots.py                # Visualization and metrics
-├── compare_to.py           # Classical denoiser comparison
-├── statistical_benchmark.py # Batch benchmarking
-└── docs/
-    ├── knowledge/          # Technical documentation
-    └── site/               # Interactive demo website
+├── circuit.py                # Quantum circuit construction and oracle design
+├── main.py                   # Single-run pipeline for encoding and reconstruction
+├── utils.py                  # Image processing and quadtree utilities
+├── plots.py                  # Visualization and metric generation
+├── compare_to.py             # Classical and deep learning baseline filters
+├── statistical_benchmark.py   # Batch benchmarking and hypothesis testing
+├── configs/
+│   └── paper.ini             # Master experiment configuration
+├── resources/                # Test datasets and sample images
+└── docs/                     # Technical documentation and notes
 ```
 
-## Documentation
-
-- [Knowledge Base](docs/knowledge/README.md) - Technical documentation
-- [Demo Site](docs/site/index.html) - Interactive visualizations
-
-## Requirements
-
-- Python 3.9+
-- Qiskit
-- NumPy, OpenCV, Matplotlib
-- scikit-image, scikit-video
-- bm3d, brisque, pypiqe (for benchmarking)
-
-## Author
-
-**Keno S. Jose**  
-Undergraduate Thesis Project
+***
 
 ## License
 
-Apache 2.0
+This project is licensed under the Apache License 2.0.
